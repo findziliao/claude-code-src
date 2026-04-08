@@ -271,7 +271,7 @@ function getWarningUpsellText(
     // Only show if overage provisioning is allowed for this org type (e.g., not AWS marketplace)
     if (subscriptionType === 'team' || subscriptionType === 'enterprise') {
       if (!hasExtraUsageEnabled && isOverageProvisioningAllowed()) {
-        return '/extra-usage to request more'
+        return 'contact your administrator for more usage'
       }
       // Teams/Enterprise with overages enabled or unsupported billing type don't need upsell
       return null
@@ -287,7 +287,7 @@ function getWarningUpsellText(
   if (rateLimitType === 'overage') {
     if (subscriptionType === 'team' || subscriptionType === 'enterprise') {
       if (!hasExtraUsageEnabled && isOverageProvisioningAllowed()) {
-        return '/extra-usage to request more'
+        return 'contact your administrator for more usage'
       }
     }
   }

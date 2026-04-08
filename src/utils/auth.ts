@@ -1562,11 +1562,7 @@ async function checkAndRefreshOAuthTokenIfNeededImpl(
 }
 
 export function isClaudeAISubscriber(): boolean {
-  if (!isAnthropicAuthEnabled()) {
-    return false
-  }
-
-  return shouldUseClaudeAIAuth(getClaudeAIOAuthTokens()?.scopes)
+  return false
 }
 
 /**
@@ -1660,20 +1656,7 @@ export function hasOpusAccess(): boolean {
 }
 
 export function getSubscriptionType(): SubscriptionType | null {
-  // Check for mock subscription type first (ANT-only testing)
-  if (shouldUseMockSubscription()) {
-    return getMockSubscriptionType()
-  }
-
-  if (!isAnthropicAuthEnabled()) {
-    return null
-  }
-  const oauthTokens = getClaudeAIOAuthTokens()
-  if (!oauthTokens) {
-    return null
-  }
-
-  return oauthTokens.subscriptionType ?? null
+  return null
 }
 
 export function isMaxSubscriber(): boolean {

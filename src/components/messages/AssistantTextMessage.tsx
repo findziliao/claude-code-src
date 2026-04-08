@@ -15,7 +15,6 @@ import { InterruptedByUser } from '../InterruptedByUser.js';
 import { Markdown } from '../Markdown.js';
 import { MessageResponse } from '../MessageResponse.js';
 import { MessageActionsSelectedContext } from '../messageActions.js';
-import { RateLimitMessage } from './RateLimitMessage.js';
 const MAX_API_ERROR_CHARS = 1000;
 type Props = {
   param: TextBlockParam;
@@ -62,10 +61,9 @@ export function AssistantTextMessage(t0) {
   }
   if (isRateLimitErrorMessage(text)) {
     let t2;
-    if ($[0] !== onOpenRateLimitOptions || $[1] !== text) {
-      t2 = <RateLimitMessage text={text} onOpenRateLimitOptions={onOpenRateLimitOptions} />;
-      $[0] = onOpenRateLimitOptions;
-      $[1] = text;
+    if ($[0] !== text) {
+      t2 = <MessageResponse><Text color="error">{text}</Text></MessageResponse>;
+      $[0] = text;
       $[2] = t2;
     } else {
       t2 = $[2];

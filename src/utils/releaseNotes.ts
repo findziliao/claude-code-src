@@ -288,6 +288,13 @@ export async function checkForReleaseNotes(
   lastSeenVersion: string | null | undefined,
   currentVersion: string = MACRO.VERSION,
 ): Promise<{ hasReleaseNotes: boolean; releaseNotes: string[] }> {
+  void lastSeenVersion
+  void currentVersion
+  return {
+    hasReleaseNotes: false,
+    releaseNotes: [],
+  }
+
   // For Ant builds, use VERSION_CHANGELOG bundled at build time
   if (process.env.USER_TYPE === 'ant') {
     const changelog = MACRO.VERSION_CHANGELOG
@@ -336,6 +343,13 @@ export function checkForReleaseNotesSync(
   lastSeenVersion: string | null | undefined,
   currentVersion: string = MACRO.VERSION,
 ): { hasReleaseNotes: boolean; releaseNotes: string[] } {
+  void lastSeenVersion
+  void currentVersion
+  return {
+    hasReleaseNotes: false,
+    releaseNotes: [],
+  }
+
   // For Ant builds, use VERSION_CHANGELOG bundled at build time
   if (process.env.USER_TYPE === 'ant') {
     const changelog = MACRO.VERSION_CHANGELOG

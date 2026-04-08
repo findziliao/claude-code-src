@@ -56,7 +56,7 @@ export const API_ERROR_MESSAGE_PREFIX = 'API Error'
 export function startsWithApiErrorPrefix(text: string): boolean {
   return (
     text.startsWith(API_ERROR_MESSAGE_PREFIX) ||
-    text.startsWith(`Please run /login · ${API_ERROR_MESSAGE_PREFIX}`)
+    text.startsWith(`Authentication required · ${API_ERROR_MESSAGE_PREFIX}`)
   )
 }
 export const PROMPT_TOO_LONG_ERROR_MESSAGE = 'Prompt is too long'
@@ -152,7 +152,7 @@ export function isMediaSizeErrorMessage(msg: AssistantMessage): boolean {
   )
 }
 export const CREDIT_BALANCE_TOO_LOW_ERROR_MESSAGE = 'Credit balance is too low'
-export const INVALID_API_KEY_ERROR_MESSAGE = 'Not logged in · Please run /login'
+export const INVALID_API_KEY_ERROR_MESSAGE = 'Authentication required'
 export const INVALID_API_KEY_ERROR_MESSAGE_EXTERNAL =
   'Invalid API key · Fix external API key'
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
@@ -160,7 +160,7 @@ export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY_WITH_OAUTH =
 export const ORG_DISABLED_ERROR_MESSAGE_ENV_KEY =
   'Your ANTHROPIC_API_KEY belongs to a disabled organization · Update or unset the environment variable'
 export const TOKEN_REVOKED_ERROR_MESSAGE =
-  'OAuth token revoked · Please run /login'
+  'OAuth token revoked · Re-authentication required'
 export const CCR_AUTH_ERROR_MESSAGE =
   'Authentication error · This may be a temporary network issue, please try again'
 export const REPEATED_529_ERROR_MESSAGE = 'Repeated 529 Overloaded errors'
@@ -195,7 +195,7 @@ export function getRequestTooLargeErrorMessage(): string {
     : `Request too large (${limits}). Double press esc to go back and try with a smaller file.`
 }
 export const OAUTH_ORG_NOT_ALLOWED_ERROR_MESSAGE =
-  'Your account does not have access to Claude Code. Please run /login.'
+  'Your account does not have access to Claude Code.'
 
 export function getTokenRevokedErrorMessage(): string {
   return getIsNonInteractiveSession()
@@ -539,8 +539,8 @@ export function getAssistantMessageFromError(
     // (e.g. 1M context without Extra Usage) and infra capacity 429s land here.
     if (error.message.includes('Extra usage is required for long context')) {
       const hint = getIsNonInteractiveSession()
-        ? 'enable extra usage at claude.ai/settings/usage, or use --model to switch to standard context'
-        : 'run /extra-usage to enable, or /model to switch to standard context'
+        ? 'enable long-context access in your account settings, or use --model to switch to standard context'
+        : 'use /model to switch to standard context'
       return createAssistantAPIErrorMessage({
         content: `${API_ERROR_MESSAGE_PREFIX}: Extra usage is required for 1M context · ${hint}`,
         error: 'rate_limit',
@@ -742,7 +742,7 @@ export function getAssistantMessageFromError(
   ) {
     return createAssistantAPIErrorMessage({
       content:
-        'Claude Opus is not available with the Claude Pro plan. If you have updated your subscription plan recently, run /logout and /login for the plan to take effect.',
+        'Claude Opus is not available with the Claude Pro plan. If you recently changed your plan, restart with refreshed credentials and try again.',
       error: 'invalid_request',
     })
   }
@@ -878,7 +878,7 @@ export function getAssistantMessageFromError(
       error: 'authentication_failed',
       content: getIsNonInteractiveSession()
         ? `Failed to authenticate. ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`
-        : `Please run /login · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
+        : `Authentication required · ${API_ERROR_MESSAGE_PREFIX}: ${error.message}`,
     })
   }
 

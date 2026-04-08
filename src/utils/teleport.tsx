@@ -445,7 +445,7 @@ export async function teleportResumeCodeSession(sessionId: string, onProgress?: 
       logEvent('tengu_teleport_resume_error', {
         error_type: 'no_access_token' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
       });
-      throw new Error('Claude Code web sessions require authentication with a Claude.ai account. API key authentication is not sufficient. Please run /login to authenticate, or check your authentication status with /status.');
+      throw new Error('Claude Code web sessions require Claude.ai authentication. API key authentication is not sufficient.');
     }
 
     // Get organization UUID

@@ -26,21 +26,14 @@ import mapValues from 'lodash-es/mapValues.js';
 import pickBy from 'lodash-es/pickBy.js';
 import uniqBy from 'lodash-es/uniqBy.js';
 import React from 'react';
-import { getOauthConfig } from './constants/oauth.js';
-import { getRemoteSessionUrl } from './constants/product.js';
 import { getSystemContext, getUserContext } from './context.js';
 import { init, initializeTelemetryAfterTrust } from './entrypoints/init.js';
 import { addToHistory } from './history.js';
 import type { Root } from './ink.js';
 import { launchRepl } from './replLauncher.js';
 import { hasGrowthBookEnvOverride, initializeGrowthBook, refreshGrowthBookAfterAuthChange } from './services/analytics/growthbook.js';
-import { fetchBootstrapData } from './services/api/bootstrap.js';
-import { type DownloadResult, downloadSessionFiles, type FilesApiConfig, parseFileSpecs } from './services/api/filesApi.js';
-import { prefetchPassesEligibility } from './services/api/referral.js';
 import { prefetchOfficialMcpUrls } from './services/mcp/officialRegistry.js';
 import type { McpSdkServerConfig, McpServerConfig, ScopedMcpServerConfig } from './services/mcp/types.js';
-import { isPolicyAllowed, loadPolicyLimits, refreshPolicyLimits, waitForPolicyLimitsToLoad } from './services/policyLimits/index.js';
-import { loadRemoteManagedSettings, refreshRemoteManagedSettings } from './services/remoteManagedSettings/index.js';
 import type { ToolInputJSONSchema } from './Tool.js';
 import { createSyntheticOutputTool, isSyntheticOutputToolEnabled } from './tools/SyntheticOutputTool/SyntheticOutputTool.js';
 import { getTools } from './tools.js';
@@ -48,7 +41,7 @@ import { canUserConfigureAdvisor, getInitialAdvisorSetting, isAdvisorEnabled, is
 import { isAgentSwarmsEnabled } from './utils/agentSwarmsEnabled.js';
 import { count, uniq } from './utils/array.js';
 import { installAsciicastRecorder } from './utils/asciicast.js';
-import { getSubscriptionType, isClaudeAISubscriber, prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe, validateForceLoginOrg } from './utils/auth.js';
+import { prefetchAwsCredentialsAndBedRockInfoIfSafe, prefetchGcpCredentialsIfSafe } from './utils/auth.js';
 import { checkHasTrustDialogAccepted, getGlobalConfig, getRemoteControlAtStartup, isAutoUpdaterDisabled, saveGlobalConfig } from './utils/config.js';
 import { seedEarlyInput, stopCapturingEarlyInput } from './utils/earlyInput.js';
 import { getInitialEffortSetting, parseEffortValue } from './utils/effort.js';
@@ -57,7 +50,6 @@ import { applyConfigEnvironmentVariables } from './utils/managedEnv.js';
 import { createSystemMessage, createUserMessage } from './utils/messages.js';
 import { getPlatform } from './utils/platform.js';
 import { getBaseRenderOptions } from './utils/renderOptions.js';
-import { getSessionIngressAuthToken } from './utils/sessionIngressAuth.js';
 import { settingsChangeDetector } from './utils/settings/changeDetector.js';
 import { skillChangeDetector } from './utils/skills/skillChangeDetector.js';
 import { jsonParse, writeFileSync_DEPRECATED } from './utils/slowOperations.js';
@@ -84,10 +76,10 @@ import { isAnalyticsDisabled } from 'src/services/analytics/config.js';
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
 import { initializeAnalyticsGates } from 'src/services/analytics/sink.js';
-import { getOriginalCwd, setAdditionalDirectoriesForClaudeMd, setIsRemoteMode, setMainLoopModelOverride, setMainThreadAgentType, setTeleportedSessionInfo } from './bootstrap/state.js';
+import { getOriginalCwd, setAdditionalDirectoriesForClaudeMd, setIsRemoteMode, setMainLoopModelOverride, setMainThreadAgentType } from './bootstrap/state.js';
 import { filterCommandsForRemoteMode, getCommands } from './commands.js';
 import type { StatsStore } from './context/stats.js';
-import { launchAssistantInstallWizard, launchAssistantSessionChooser, launchInvalidSettingsDialog, launchResumeChooser, launchSnapshotUpdateDialog, launchTeleportRepoMismatchDialog, launchTeleportResumeWrapper } from './dialogLaunchers.js';
+import { launchAssistantInstallWizard, launchAssistantSessionChooser, launchInvalidSettingsDialog, launchResumeChooser, launchSnapshotUpdateDialog } from './dialogLaunchers.js';
 import { SHOW_CURSOR } from './ink/termio/dec.js';
 import { exitWithError, exitWithMessage, getRenderContext, renderAndRun, showSetupScreens } from './interactiveHelpers.js';
 import { initBuiltinPlugins } from './plugins/bundled/index.js';
@@ -155,7 +147,7 @@ import { createEmptyAttributionState } from 'src/utils/commitAttribution.js';
 import { countConcurrentSessions, registerSession, updateSessionName } from 'src/utils/concurrentSessions.js';
 import { getCwd } from 'src/utils/cwd.js';
 import { logForDebugging, setHasFormattedOutput } from 'src/utils/debug.js';
-import { errorMessage, getErrnoCode, isENOENT, TeleportOperationError, toError } from 'src/utils/errors.js';
+import { errorMessage, getErrnoCode, isENOENT, toError } from 'src/utils/errors.js';
 import { getFsImplementation, safeResolvePath } from 'src/utils/fsOperations.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { setAllHookEventsEnabled } from 'src/utils/hooks/hookEvents.js';
@@ -182,9 +174,9 @@ import { migrateSonnet1mToSonnet45 } from './migrations/migrateSonnet1mToSonnet4
 import { migrateSonnet45ToSonnet46 } from './migrations/migrateSonnet45ToSonnet46.js';
 import { resetAutoModeOptInForDefaultOffer } from './migrations/resetAutoModeOptInForDefaultOffer.js';
 import { resetProToOpusDefault } from './migrations/resetProToOpusDefault.js';
-import { createRemoteSessionConfig } from './remote/RemoteSessionManager.js';
 /* eslint-enable @typescript-eslint/no-require-imports */
 // teleportWithProgress dynamically imported at call site
+import { createRemoteSessionConfig } from './remote/RemoteSessionManager.js';
 import { createDirectConnectSession, DirectConnectError } from './server/createDirectConnectSession.js';
 import { initializeLspServerManager } from './services/lsp/manager.js';
 import { shouldEnablePromptSuggestion } from './services/PromptSuggestion/promptSuggestion.js';
@@ -195,12 +187,10 @@ import { asSessionId } from './types/ids.js';
 import { filterAllowedSdkBetas } from './utils/betas.js';
 import { isInBundledMode, isRunningWithBun } from './utils/bundledMode.js';
 import { logForDiagnosticsNoPII } from './utils/diagLogs.js';
-import { filterExistingPaths, getKnownPathsForRepo } from './utils/githubRepoPathMapping.js';
 import { clearPluginCache, loadAllPluginsCacheOnly } from './utils/plugins/pluginLoader.js';
 import { migrateChangelogFromConfig } from './utils/releaseNotes.js';
 import { SandboxManager } from './utils/sandbox/sandbox-adapter.js';
-import { fetchSession, prepareApiRequest } from './utils/teleport/api.js';
-import { checkOutTeleportedSessionBranch, processMessagesForTeleportResume, teleportToRemoteWithErrorHandling, validateGitState, validateSessionRepository } from './utils/teleport.js';
+import { prepareApiRequest } from './utils/teleport/api.js';
 import { shouldEnableThinkingByDefault, type ThinkingConfig } from './utils/thinking.js';
 import { initUser, resetUserCache } from './utils/user.js';
 import { getTmuxInstallInstructions, isTmuxAvailable, parsePRReference } from './utils/worktree.js';
@@ -415,7 +405,6 @@ export function startDeferredPrefetches(): void {
 
   // Analytics and feature flag initialization
   void initializeAnalyticsGates();
-  void prefetchOfficialMcpUrls();
   void refreshModelCapabilities();
 
   // File change detectors deferred from init() to unblock first render
@@ -551,19 +540,16 @@ const _pendingConnect: PendingConnect | undefined = feature('DIRECT_CONNECT') ? 
   dangerouslySkipPermissions: false
 } : undefined;
 
-// Set by early argv processing when `claude assistant [sessionId]` is detected
-type PendingAssistantChat = {
-  sessionId?: string;
-  discover: boolean;
-};
-const _pendingAssistantChat: PendingAssistantChat | undefined = feature('KAIROS') ? {
-  sessionId: undefined,
-  discover: false
-} : undefined;
 
 // `claude ssh <host> [dir]` — parsed from argv early (same pattern as
 // DIRECT_CONNECT above) so the main command path can pick it up and hand
 // the REPL an SSH-backed session instead of a local one.
+type PendingAssistantChat = {
+  sessionId?: string;
+  discover: boolean;
+};
+const _pendingAssistantChat: PendingAssistantChat | undefined = undefined;
+
 type PendingSSH = {
   host: string | undefined;
   cwd: string | undefined;
@@ -609,7 +595,7 @@ export async function main() {
   // Check for cc:// or cc+unix:// URL in argv — rewrite so the main command
   // handles it, giving the full interactive TUI instead of a stripped-down subcommand.
   // For headless (-p), we rewrite to the internal `open` subcommand.
-  if (feature('DIRECT_CONNECT')) {
+  if (false && feature('DIRECT_CONNECT')) {
     const rawCliArgs = process.argv.slice(2);
     const ccIdx = rawCliArgs.findIndex(a => a.startsWith('cc://') || a.startsWith('cc+unix://'));
     if (ccIdx !== -1 && _pendingConnect) {
@@ -682,7 +668,7 @@ export async function main() {
   // `claude -p "explain assistant"`. Root-flag-before-subcommand
   // (e.g. `--debug assistant`) falls through to the stub, which
   // prints usage.
-  if (feature('KAIROS') && _pendingAssistantChat) {
+  if (false && feature('KAIROS') && _pendingAssistantChat) {
     const rawArgs = process.argv.slice(2);
     if (rawArgs[0] === 'assistant') {
       const nextArg = rawArgs[1];
@@ -950,20 +936,6 @@ async function run(): Promise<CommanderCommand> {
     runMigrations();
     profileCheckpoint('preAction_after_migrations');
 
-    // Load remote managed settings for enterprise customers (non-blocking)
-    // Fails open - if fetch fails, continues without remote settings
-    // Settings are applied via hot-reload when they arrive
-    // Must happen after init() to ensure config reading is allowed
-    void loadRemoteManagedSettings();
-    void loadPolicyLimits();
-    profileCheckpoint('preAction_after_remote_settings');
-
-    // Load settings sync (non-blocking, fail-open)
-    // CLI: uploads local settings to remote (CCR download is handled by print.ts)
-    if (feature('UPLOAD_USER_SETTINGS')) {
-      void import('./services/settingsSync/index.js').then(m => m.uploadUserSettingsInBackground());
-    }
-    profileCheckpoint('preAction_after_settings_sync');
   });
   program.name('claude').description(`Claude Code - starts an interactive session by default, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
   // Subcommands inherit helpOption via commander's copyInheritedSettings —
@@ -973,7 +945,7 @@ async function run(): Promise<CommanderCommand> {
     // If not provided but flag is present, value will be true
     // The actual filtering is handled in debug.ts by parsing process.argv
     return true;
-  }).addOption(new Option('--debug-to-stderr', 'Enable debug mode (to stderr)').argParser(Boolean).hideHelp()).option('--debug-file <path>', 'Write debug logs to a specific file path (implicitly enables debug mode)', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).option('-p, --print', 'Print response and exit (useful for pipes). Note: The workspace trust dialog is skipped when Claude is run with the -p mode. Only use this flag in directories you trust.', () => true).option('--bare', 'Minimal mode: skip hooks, LSP, plugin sync, attribution, auto-memory, background prefetches, keychain reads, and CLAUDE.md auto-discovery. Sets CLAUDE_CODE_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read). 3P providers (Bedrock/Vertex/Foundry) use their own credentials. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir (CLAUDE.md dirs), --mcp-config, --settings, --agents, --plugin-dir.', () => true).addOption(new Option('--init', 'Run Setup hooks with init trigger, then continue').hideHelp()).addOption(new Option('--init-only', 'Run Setup and SessionStart:startup hooks, then exit').hideHelp()).addOption(new Option('--maintenance', 'Run Setup hooks with maintenance trigger, then continue').hideHelp()).addOption(new Option('--output-format <format>', 'Output format (only works with --print): "text" (default), "json" (single result), or "stream-json" (realtime streaming)').choices(['text', 'json', 'stream-json'])).addOption(new Option('--json-schema <schema>', 'JSON Schema for structured output validation. ' + 'Example: {"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}').argParser(String)).option('--include-hook-events', 'Include all hook lifecycle events in the output stream (only works with --output-format=stream-json)', () => true).option('--include-partial-messages', 'Include partial message chunks as they arrive (only works with --print and --output-format=stream-json)', () => true).addOption(new Option('--input-format <format>', 'Input format (only works with --print): "text" (default), or "stream-json" (realtime streaming input)').choices(['text', 'stream-json'])).option('--mcp-debug', '[DEPRECATED. Use --debug instead] Enable MCP debug mode (shows MCP server errors)', () => true).option('--dangerously-skip-permissions', 'Bypass all permission checks. Recommended only for sandboxes with no internet access.', () => true).option('--allow-dangerously-skip-permissions', 'Enable bypassing all permission checks as an option, without it being enabled by default. Recommended only for sandboxes with no internet access.', () => true).addOption(new Option('--thinking <mode>', 'Thinking mode: enabled (equivalent to adaptive), disabled').choices(['enabled', 'adaptive', 'disabled']).hideHelp()).addOption(new Option('--max-thinking-tokens <tokens>', '[DEPRECATED. Use --thinking instead for newer models] Maximum number of thinking tokens (only works with --print)').argParser(Number).hideHelp()).addOption(new Option('--max-turns <turns>', 'Maximum number of agentic turns in non-interactive mode. This will early exit the conversation after the specified number of turns. (only works with --print)').argParser(Number).hideHelp()).addOption(new Option('--max-budget-usd <amount>', 'Maximum dollar amount to spend on API calls (only works with --print)').argParser(value => {
+  }).addOption(new Option('--debug-to-stderr', 'Enable debug mode (to stderr)').argParser(Boolean).hideHelp()).option('--debug-file <path>', 'Write debug logs to a specific file path (implicitly enables debug mode)', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).option('-p, --print', 'Print response and exit (useful for pipes). Note: The workspace trust dialog is skipped when Claude is run with the -p mode. Only use this flag in directories you trust.', () => true).option('--bare', 'Minimal mode: skip hooks, LSP, attribution, auto-memory, background prefetches, keychain reads, and CLAUDE.md auto-discovery. Sets CLAUDE_CODE_SIMPLE=1. Anthropic auth is strictly ANTHROPIC_API_KEY or apiKeyHelper via --settings (OAuth and keychain are never read). 3P providers (Bedrock/Vertex/Foundry) use their own credentials. Skills still resolve via /skill-name. Explicitly provide context via: --system-prompt[-file], --append-system-prompt[-file], --add-dir, --settings, --agents.', () => true).addOption(new Option('--init', 'Run Setup hooks with init trigger, then continue').hideHelp()).addOption(new Option('--init-only', 'Run Setup and SessionStart:startup hooks, then exit').hideHelp()).addOption(new Option('--maintenance', 'Run Setup hooks with maintenance trigger, then continue').hideHelp()).addOption(new Option('--output-format <format>', 'Output format (only works with --print): "text" (default), "json" (single result), or "stream-json" (realtime streaming)').choices(['text', 'json', 'stream-json'])).addOption(new Option('--json-schema <schema>', 'JSON Schema for structured output validation. ' + 'Example: {"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}').argParser(String)).option('--include-hook-events', 'Include all hook lifecycle events in the output stream (only works with --output-format=stream-json)', () => true).option('--include-partial-messages', 'Include partial message chunks as they arrive (only works with --print and --output-format=stream-json)', () => true).addOption(new Option('--input-format <format>', 'Input format (only works with --print): "text" (default), or "stream-json" (realtime streaming input)').choices(['text', 'stream-json'])).option('--dangerously-skip-permissions', 'Bypass all permission checks. Recommended only for sandboxes with no internet access.', () => true).option('--allow-dangerously-skip-permissions', 'Enable bypassing all permission checks as an option, without it being enabled by default. Recommended only for sandboxes with no internet access.', () => true).addOption(new Option('--thinking <mode>', 'Thinking mode: enabled (equivalent to adaptive), disabled').choices(['enabled', 'adaptive', 'disabled']).hideHelp()).addOption(new Option('--max-thinking-tokens <tokens>', '[DEPRECATED. Use --thinking instead for newer models] Maximum number of thinking tokens (only works with --print)').argParser(Number).hideHelp()).addOption(new Option('--max-turns <turns>', 'Maximum number of agentic turns in non-interactive mode. This will early exit the conversation after the specified number of turns. (only works with --print)').argParser(Number).hideHelp()).addOption(new Option('--max-budget-usd <amount>', 'Maximum dollar amount to spend on API calls (only works with --print)').argParser(value => {
     const amount = Number(value);
     if (isNaN(amount) || amount <= 0) {
       throw new Error('--max-budget-usd must be a positive number greater than 0');
@@ -985,10 +957,10 @@ async function run(): Promise<CommanderCommand> {
       throw new Error('--task-budget must be a positive integer');
     }
     return tokens;
-  }).hideHelp()).option('--replay-user-messages', 'Re-emit user messages from stdin back on stdout for acknowledgment (only works with --input-format=stream-json and --output-format=stream-json)', () => true).addOption(new Option('--enable-auth-status', 'Enable auth status messages in SDK mode').default(false).hideHelp()).option('--allowedTools, --allowed-tools <tools...>', 'Comma or space-separated list of tool names to allow (e.g. "Bash(git:*) Edit")').option('--tools <tools...>', 'Specify the list of available tools from the built-in set. Use "" to disable all tools, "default" to use all tools, or specify tool names (e.g. "Bash,Edit,Read").').option('--disallowedTools, --disallowed-tools <tools...>', 'Comma or space-separated list of tool names to deny (e.g. "Bash(git:*) Edit")').option('--mcp-config <configs...>', 'Load MCP servers from JSON files or strings (space-separated)').addOption(new Option('--permission-prompt-tool <tool>', 'MCP tool to use for permission prompts (only works with --print)').argParser(String).hideHelp()).addOption(new Option('--system-prompt <prompt>', 'System prompt to use for the session').argParser(String)).addOption(new Option('--system-prompt-file <file>', 'Read system prompt from a file').argParser(String).hideHelp()).addOption(new Option('--append-system-prompt <prompt>', 'Append a system prompt to the default system prompt').argParser(String)).addOption(new Option('--append-system-prompt-file <file>', 'Read system prompt from a file and append to the default system prompt').argParser(String).hideHelp()).addOption(new Option('--permission-mode <mode>', 'Permission mode to use for the session').argParser(String).choices(PERMISSION_MODES)).option('-c, --continue', 'Continue the most recent conversation in the current directory', () => true).option('-r, --resume [value]', 'Resume a conversation by session ID, or open interactive picker with optional search term', value => value || true).option('--fork-session', 'When resuming, create a new session ID instead of reusing the original (use with --resume or --continue)', () => true).addOption(new Option('--prefill <text>', 'Pre-fill the prompt input with text without submitting it').hideHelp()).addOption(new Option('--deep-link-origin', 'Signal that this session was launched from a deep link').hideHelp()).addOption(new Option('--deep-link-repo <slug>', 'Repo slug the deep link ?repo= parameter resolved to the current cwd').hideHelp()).addOption(new Option('--deep-link-last-fetch <ms>', 'FETCH_HEAD mtime in epoch ms, precomputed by the deep link trampoline').argParser(v => {
+  }).hideHelp()).option('--replay-user-messages', 'Re-emit user messages from stdin back on stdout for acknowledgment (only works with --input-format=stream-json and --output-format=stream-json)', () => true).option('--allowedTools, --allowed-tools <tools...>', 'Comma or space-separated list of tool names to allow (e.g. "Bash(git:*) Edit")').option('--tools <tools...>', 'Specify the list of available tools from the built-in set. Use "" to disable all tools, "default" to use all tools, or specify tool names (e.g. "Bash,Edit,Read").').option('--disallowedTools, --disallowed-tools <tools...>', 'Comma or space-separated list of tool names to deny (e.g. "Bash(git:*) Edit")').addOption(new Option('--permission-prompt-tool <tool>', 'MCP tool to use for permission prompts (only works with --print)').argParser(String).hideHelp()).addOption(new Option('--system-prompt <prompt>', 'System prompt to use for the session').argParser(String)).addOption(new Option('--system-prompt-file <file>', 'Read system prompt from a file').argParser(String).hideHelp()).addOption(new Option('--append-system-prompt <prompt>', 'Append a system prompt to the default system prompt').argParser(String)).addOption(new Option('--append-system-prompt-file <file>', 'Read system prompt from a file and append to the default system prompt').argParser(String).hideHelp()).addOption(new Option('--permission-mode <mode>', 'Permission mode to use for the session').argParser(String).choices(PERMISSION_MODES)).option('-c, --continue', 'Continue the most recent conversation in the current directory', () => true).option('-r, --resume [value]', 'Resume a conversation by session ID, or open interactive picker with optional search term', value => value || true).option('--fork-session', 'When resuming, create a new session ID instead of reusing the original (use with --resume or --continue)', () => true).addOption(new Option('--prefill <text>', 'Pre-fill the prompt input with text without submitting it').hideHelp()).addOption(new Option('--deep-link-origin', 'Signal that this session was launched from a deep link').hideHelp()).addOption(new Option('--deep-link-repo <slug>', 'Repo slug the deep link ?repo= parameter resolved to the current cwd').hideHelp()).addOption(new Option('--deep-link-last-fetch <ms>', 'FETCH_HEAD mtime in epoch ms, precomputed by the deep link trampoline').argParser(v => {
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
-  }).hideHelp()).option('--from-pr [value]', 'Resume a session linked to a PR by PR number/URL, or open interactive picker with optional search term', value => value || true).option('--no-session-persistence', 'Disable session persistence - sessions will not be saved to disk and cannot be resumed (only works with --print)').addOption(new Option('--resume-session-at <message id>', 'When resuming, only messages up to and including the assistant message with <message.id> (use with --resume in print mode)').argParser(String).hideHelp()).addOption(new Option('--rewind-files <user-message-id>', 'Restore files to state at the specified user message and exit (requires --resume)').hideHelp())
+  }).hideHelp()).option('--no-session-persistence', 'Disable session persistence - sessions will not be saved to disk and cannot be resumed (only works with --print)').addOption(new Option('--resume-session-at <message id>', 'When resuming, only messages up to and including the assistant message with <message.id> (use with --resume in print mode)').argParser(String).hideHelp()).addOption(new Option('--rewind-files <user-message-id>', 'Restore files to state at the specified user message and exit (requires --resume)').hideHelp())
   // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
   .option('--model <model>', `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`).addOption(new Option('--effort <level>', `Effort level for the current session (low, medium, high, max)`).argParser((rawValue: string) => {
     const value = rawValue.toLowerCase();
@@ -997,13 +969,7 @@ async function run(): Promise<CommanderCommand> {
       throw new InvalidArgumentError(`It must be one of: ${allowed.join(', ')}`);
     }
     return value;
-  })).option('--agent <agent>', `Agent for the current session. Overrides the 'agent' setting.`).option('--betas <betas...>', 'Beta headers to include in API requests (API key users only)').option('--fallback-model <model>', 'Enable automatic fallback to specified model when default model is overloaded (only works with --print)').addOption(new Option('--workload <tag>', 'Workload tag for billing-header attribution (cc_workload). Process-scoped; set by SDK daemon callers that spawn subprocesses for cron work. (only works with --print)').hideHelp()).option('--settings <file-or-json>', 'Path to a settings JSON file or a JSON string to load additional settings from').option('--add-dir <directories...>', 'Additional directories to allow tool access to').option('--ide', 'Automatically connect to IDE on startup if exactly one valid IDE is available', () => true).option('--strict-mcp-config', 'Only use MCP servers from --mcp-config, ignoring all other MCP configurations', () => true).option('--session-id <uuid>', 'Use a specific session ID for the conversation (must be a valid UUID)').option('-n, --name <name>', 'Set a display name for this session (shown in /resume and terminal title)').option('--agents <json>', 'JSON object defining custom agents (e.g. \'{"reviewer": {"description": "Reviews code", "prompt": "You are a code reviewer"}}\')').option('--setting-sources <sources>', 'Comma-separated list of setting sources to load (user, project, local).')
-  // gh-33508: <paths...> (variadic) consumed everything until the next
-  // --flag. `claude --plugin-dir /path mcp add --transport http` swallowed
-  // `mcp` and `add` as paths, then choked on --transport as an unknown
-  // top-level option. Single-value + collect accumulator means each
-  // --plugin-dir takes exactly one arg; repeat the flag for multiple dirs.
-  .option('--plugin-dir <path>', 'Load plugins from a directory for this session only (repeatable: --plugin-dir A --plugin-dir B)', (val: string, prev: string[]) => [...prev, val], [] as string[]).option('--disable-slash-commands', 'Disable all skills', () => true).option('--chrome', 'Enable Claude in Chrome integration').option('--no-chrome', 'Disable Claude in Chrome integration').option('--file <specs...>', 'File resources to download at startup. Format: file_id:relative_path (e.g., --file file_abc:doc.txt file_def:img.png)').action(async (prompt, options) => {
+  })).option('--agent <agent>', `Agent for the current session. Overrides the 'agent' setting.`).option('--betas <betas...>', 'Beta headers to include in API requests (API key users only)').option('--fallback-model <model>', 'Enable automatic fallback to specified model when default model is overloaded (only works with --print)').addOption(new Option('--workload <tag>', 'Workload tag for billing-header attribution (cc_workload). Process-scoped; set by SDK daemon callers that spawn subprocesses for cron work. (only works with --print)').hideHelp()).option('--settings <file-or-json>', 'Path to a settings JSON file or a JSON string to load additional settings from').option('--add-dir <directories...>', 'Additional directories to allow tool access to').option('--ide', 'Automatically connect to IDE on startup if exactly one valid IDE is available', () => true).option('--session-id <uuid>', 'Use a specific session ID for the conversation (must be a valid UUID)').option('-n, --name <name>', 'Set a display name for this session (shown in /resume and terminal title)').option('--agents <json>', 'JSON object defining custom agents (e.g. \'{"reviewer": {"description": "Reviews code", "prompt": "You are a code reviewer"}}\')').option('--setting-sources <sources>', 'Comma-separated list of setting sources to load (user, project, local).').option('--disable-slash-commands', 'Disable all skills', () => true).action(async (prompt, options) => {
     profileCheckpoint('action_handler_start');
 
     // --bare = one-switch minimal mode. Sets SIMPLE so all the existing
@@ -1095,7 +1061,6 @@ async function run(): Promise<CommanderCommand> {
       tools: baseTools = [],
       allowedTools = [],
       disallowedTools = [],
-      mcpConfig = [],
       permissionMode: permissionModeCli,
       addDir = [],
       fallbackModel,
@@ -1105,12 +1070,11 @@ async function run(): Promise<CommanderCommand> {
       includeHookEvents,
       includePartialMessages
     } = options;
+    const mcpConfig: string[] = [];
     if (options.prefill) {
       seedEarlyInput(options.prefill);
     }
 
-    // Promise for file downloads - started early, awaited before REPL renders
-    let fileDownloadPromise: Promise<DownloadResult[]> | undefined;
     const agentsJson = options.agents;
     const agentCli = options.agent;
     if (feature('BG_SESSIONS') && agentCli) {
@@ -1251,27 +1215,11 @@ async function run(): Promise<CommanderCommand> {
       }
     }
 
-    // Extract teleport option
-    const teleport = (options as {
-      teleport?: string | true;
-    }).teleport ?? null;
-
-    // Extract remote option (can be true if no description provided, or a string)
-    const remoteOption = (options as {
-      remote?: string | true;
-    }).remote;
-    const remote = remoteOption === true ? '' : remoteOption ?? null;
-
-    // Extract --remote-control / --rc flag (enable bridge in interactive session)
-    const remoteControlOption = (options as {
-      remoteControl?: string | true;
-    }).remoteControl ?? (options as {
-      rc?: string | true;
-    }).rc;
-    // Actual bridge check is deferred to after showSetupScreens() so that
-    // trust is established and GrowthBook has auth headers.
+    const teleport = null;
+    const remote = null;
+    const remoteControlOption = undefined;
     let remoteControl = false;
-    const remoteControlName = typeof remoteControlOption === 'string' && remoteControlOption.length > 0 ? remoteControlOption : undefined;
+    const remoteControlName = undefined;
 
     // Validate session ID if provided
     if (sessionId) {
@@ -1298,35 +1246,6 @@ async function run(): Promise<CommanderCommand> {
           process.stderr.write(chalk.red(`Error: Session ID ${validatedSessionId} is already in use.\n`));
           process.exit(1);
         }
-      }
-    }
-
-    // Download file resources if specified via --file flag
-    const fileSpecs = (options as {
-      file?: string[];
-    }).file;
-    if (fileSpecs && fileSpecs.length > 0) {
-      // Get session ingress token (provided by EnvManager via CLAUDE_CODE_SESSION_ACCESS_TOKEN)
-      const sessionToken = getSessionIngressAuthToken();
-      if (!sessionToken) {
-        process.stderr.write(chalk.red('Error: Session token required for file downloads. CLAUDE_CODE_SESSION_ACCESS_TOKEN must be set.\n'));
-        process.exit(1);
-      }
-
-      // Resolve session ID: prefer remote session ID, fall back to internal session ID
-      const fileSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID || getSessionId();
-      const files = parseFileSpecs(fileSpecs);
-      if (files.length > 0) {
-        // Use ANTHROPIC_BASE_URL if set (by EnvManager), otherwise use OAuth config
-        // This ensures consistency with session ingress API in all environments
-        const config: FilesApiConfig = {
-          baseUrl: process.env.ANTHROPIC_BASE_URL || getOauthConfig().BASE_API_URL,
-          oauthToken: sessionToken,
-          sessionId: fileSessionId
-        };
-
-        // Start download without blocking startup - await before REPL renders
-        fileDownloadPromise = downloadSessionFiles(files, config);
       }
     }
 
@@ -1412,7 +1331,7 @@ async function run(): Promise<CommanderCommand> {
 
     // Parse the MCP config files/strings if provided
     let dynamicMcpConfig: Record<string, ScopedMcpServerConfig> = {};
-    if (mcpConfig && mcpConfig.length > 0) {
+    if (false && mcpConfig && mcpConfig.length > 0) {
       // Process mcpConfig array
       const processedConfigs = mcpConfig.map(config => config.trim()).filter(config => config.length > 0);
       let allConfigs: Record<string, McpServerConfig> = {};
@@ -1523,13 +1442,9 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // Extract Claude in Chrome option and enforce claude.ai subscriber check (unless user is ant)
-    const chromeOpts = options as {
-      chrome?: boolean;
-    };
-    // Store the explicit CLI flag so teammates can inherit it
-    setChromeFlagOverride(chromeOpts.chrome);
-    const enableClaudeInChrome = shouldEnableClaudeInChrome(chromeOpts.chrome) && (("external" as string) === 'ant' || isClaudeAISubscriber());
-    const autoEnableClaudeInChrome = !enableClaudeInChrome && shouldAutoEnableClaudeInChrome();
+    setChromeFlagOverride(undefined);
+    const enableClaudeInChrome = false;
+    const autoEnableClaudeInChrome = false;
     if (enableClaudeInChrome) {
       const platform = getPlatform();
       try {
@@ -1577,7 +1492,7 @@ async function run(): Promise<CommanderCommand> {
     }
 
     // Extract strict MCP config flag
-    const strictMcpConfig = options.strictMcpConfig || false;
+    const strictMcpConfig = false;
 
     // Check if enterprise MCP configuration exists. When it does, only allow dynamic MCP
     // configs that contain special server types (sdk)
@@ -1605,7 +1520,7 @@ async function run(): Promise<CommanderCommand> {
     // `type: 'stdio'`. An enterprise-config ant with the GB gate on would
     // otherwise process.exit(1). Chrome has the same latent issue but has
     // shipped without incident; chicago places itself correctly.
-    if (feature('CHICAGO_MCP') && getPlatform() === 'macos' && !getIsNonInteractiveSession()) {
+    if (false && feature('CHICAGO_MCP') && getPlatform() === 'macos' && !getIsNonInteractiveSession()) {
       try {
         const {
           getChicagoEnabled
@@ -1781,39 +1696,24 @@ async function run(): Promise<CommanderCommand> {
     // two-phase loading). Kicked off here to overlap with setup(); awaited
     // before runHeadless so single-turn -p sees connectors. Skipped under
     // enterprise/strict MCP to preserve policy boundaries.
-    const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = isNonInteractiveSession && !strictMcpConfig && !doesEnterpriseMcpConfigExist() &&
+    const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = Promise.resolve({});
     // --bare / SIMPLE: skip claude.ai proxy servers (datadog, Gmail,
     // Slack, BigQuery, PubMed — 6-14s each to connect). Scripted calls
     // that need MCP pass --mcp-config explicitly.
-    !isBareMode() ? fetchClaudeAIMcpConfigsIfEligible().then(configs => {
-      const {
-        allowed,
-        blocked
-      } = filterMcpServersByPolicy(configs);
-      if (blocked.length > 0) {
-        process.stderr.write(`Warning: claude.ai MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
-      }
-      return allowed;
-    }) : Promise.resolve({});
 
     // Kick off MCP config loading early (safe - just reads files, no execution).
     // Both interactive and -p use getClaudeCodeMcpConfigs (local file reads only).
     // The local promise is awaited later (before prefetchAllMcpResources) to
     // overlap config I/O with setup(), commands loading, and trust dialog.
-    logForDebugging('[STARTUP] Loading MCP configs...');
+    logForDebugging('[STARTUP] MCP disabled for local-only mode');
     const mcpConfigStart = Date.now();
-    let mcpConfigResolvedMs: number | undefined;
+    const mcpConfigResolvedMs = 0;
     // --bare skips auto-discovered MCP (.mcp.json, user settings, plugins) —
     // only explicit --mcp-config works. dynamicMcpConfig is spread onto
     // allMcpConfigs downstream so it survives this skip.
-    const mcpConfigPromise = (strictMcpConfig || isBareMode() ? Promise.resolve({
+    const mcpConfigPromise = Promise.resolve({
       servers: {} as Record<string, ScopedMcpServerConfig>
-    }) : getClaudeCodeMcpConfigs(dynamicMcpConfig)).then(result => {
-      mcpConfigResolvedMs = Date.now() - mcpConfigStart;
-      return result;
     });
-
-    // NOTE: We do NOT call prefetchAllMcpResources here - that's deferred until after trust dialog
 
     if (inputFormat && inputFormat !== 'text' && inputFormat !== 'stream-json') {
       // biome-ignore lint/suspicious/noConsole:: intentional console output
@@ -2272,37 +2172,6 @@ async function run(): Promise<CommanderCommand> {
         agentDef.pendingSnapshotUpdate = undefined;
       }
 
-      // Skip executing /login if we just completed onboarding for it
-      if (onboardingShown && prompt?.trim().toLowerCase() === '/login') {
-        prompt = '';
-      }
-      if (onboardingShown) {
-        // Refresh auth-dependent services now that the user has logged in during onboarding.
-        // Keep in sync with the post-login logic in src/commands/login.tsx
-        void refreshRemoteManagedSettings();
-        void refreshPolicyLimits();
-        // Clear user data cache BEFORE GrowthBook refresh so it picks up fresh credentials
-        resetUserCache();
-        // Refresh GrowthBook after login to get updated feature flags (e.g., for claude.ai MCPs)
-        refreshGrowthBookAfterAuthChange();
-        // Clear any stale trusted device token then enroll for Remote Control.
-        // Both self-gate on tengu_sessions_elevated_auth_enforcement internally
-        // — enrollTrustedDevice() via checkGate_CACHED_OR_BLOCKING (awaits
-        // the GrowthBook reinit above), clearTrustedDeviceToken() via the
-        // sync cached check (acceptable since clear is idempotent).
-        void import('./bridge/trustedDevice.js').then(m => {
-          m.clearTrustedDeviceToken();
-          return m.enrollTrustedDevice();
-        });
-      }
-
-      // Validate that the active token's org matches forceLoginOrgUUID (if set
-      // in managed settings). Runs after onboarding so managed settings and
-      // login state are fully loaded.
-      const orgValidation = await validateForceLoginOrg();
-      if (!orgValidation.valid) {
-        await exitWithError(root, (orgValidation as { valid: false; message: string }).message);
-      }
     }
 
     // If gracefulShutdown was initiated (e.g., user rejected trust dialog),
@@ -2349,11 +2218,6 @@ async function run(): Promise<CommanderCommand> {
       logForDebugging(`Starting background startup prefetches${lastPrefetchedInfo}`);
       checkQuotaStatus().catch(error => logError(error));
 
-      // Fetch bootstrap data from the server and update all cache values.
-      void fetchBootstrapData();
-
-      // TODO: Consolidate other prefetches into a single bootstrap request.
-      void prefetchPassesEligibility();
       if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_miraculo_the_bard', false)) {
         void prefetchFastModeStatus();
       } else {
@@ -2377,57 +2241,16 @@ async function run(): Promise<CommanderCommand> {
       void refreshExampleCommands(); // Pre-fetch example commands (runs git log, no API call)
     }
 
-    // Resolve MCP configs (started early, overlaps with setup/trust dialog work)
-    const {
-      servers: existingMcpConfigs
-    } = await mcpConfigPromise;
+    await mcpConfigPromise;
     logForDebugging(`[STARTUP] MCP configs resolved in ${mcpConfigResolvedMs}ms (awaited at +${Date.now() - mcpConfigStart}ms)`);
-    // CLI flag (--mcp-config) should override file-based configs, matching settings precedence
-    const allMcpConfigs = {
-      ...existingMcpConfigs,
-      ...dynamicMcpConfig
-    };
-
-    // Separate SDK configs from regular MCP configs
     const sdkMcpConfigs: Record<string, McpSdkServerConfig> = {};
     const regularMcpConfigs: Record<string, ScopedMcpServerConfig> = {};
-    for (const [name, config] of Object.entries(allMcpConfigs)) {
-      const typedConfig = config as ScopedMcpServerConfig | McpSdkServerConfig;
-      if (typedConfig.type === 'sdk') {
-        sdkMcpConfigs[name] = typedConfig as McpSdkServerConfig;
-      } else {
-        regularMcpConfigs[name] = typedConfig as ScopedMcpServerConfig;
-      }
-    }
     profileCheckpoint('action_mcp_configs_loaded');
-
-    // Prefetch MCP resources after trust dialog (this is where execution happens).
-    // Interactive mode only: print mode defers connects until headlessStore exists
-    // and pushes per-server (below), so ToolSearch's pending-client handling works
-    // and one slow server doesn't block the batch.
-    const localMcpPromise = isNonInteractiveSession ? Promise.resolve({
-      clients: [],
-      tools: [],
-      commands: []
-    }) : prefetchAllMcpResources(regularMcpConfigs);
-    const claudeaiMcpPromise = isNonInteractiveSession ? Promise.resolve({
-      clients: [],
-      tools: [],
-      commands: []
-    }) : claudeaiConfigPromise.then(configs => Object.keys(configs).length > 0 ? prefetchAllMcpResources(configs) : {
+    const mcpPromise = Promise.resolve({
       clients: [],
       tools: [],
       commands: []
     });
-    // Merge with dedup by name: each prefetchAllMcpResources call independently
-    // adds helper tools (ListMcpResourcesTool, ReadMcpResourceTool) via
-    // local dedup flags, so merging two calls can yield duplicates. print.ts
-    // already uniqBy's the final tool pool, but dedup here keeps appState clean.
-    const mcpPromise = Promise.all([localMcpPromise, claudeaiMcpPromise]).then(([local, claudeai]) => ({
-      clients: [...local.clients, ...claudeai.clients],
-      tools: uniqBy([...local.tools, ...claudeai.tools], 'name'),
-      commands: uniqBy([...local.commands, ...claudeai.commands], 'name')
-    }));
 
     // Start hooks early so they run in parallel with MCP connections.
     // Skip for initOnly/init/maintenance (handled separately), non-interactive
@@ -2504,7 +2327,7 @@ async function run(): Promise<CommanderCommand> {
       inputFormat: inputFormat ?? 'text',
       numAllowedTools: allowedTools.length,
       numDisallowedTools: disallowedTools.length,
-      mcpClientCount: Object.keys(allMcpConfigs).length,
+      mcpClientCount: 0,
       worktreeEnabled,
       skipWebFetchPreflight: getInitialSettings().skipWebFetchPreflight,
       githubActionInputs: process.env.GITHUB_ACTION_INPUTS,
@@ -2609,14 +2432,6 @@ async function run(): Promise<CommanderCommand> {
       // loadInitialMessages awaits it. Downstream await still observes the
       // rejection — this just prevents the spurious global handler fire.
       sessionStartHooksPromise?.catch(() => {});
-      profileCheckpoint('before_validateForceLoginOrg');
-      // Validate org restriction for non-interactive sessions
-      const orgValidation = await validateForceLoginOrg();
-      if (!orgValidation.valid) {
-        process.stderr.write((orgValidation as { valid: false; message: string }).message + '\n');
-        process.exit(1);
-      }
-
       // Headless mode supports all prompt commands and some local commands
       // If disableSlashCommands is true, return empty array
       const commandsHeadless = disableSlashCommands ? [] : commands.filter(command => command.type === 'prompt' && !command.disableNonInteractive || command.type === 'local' && command.supportsNonInteractive);
@@ -2851,7 +2666,7 @@ async function run(): Promise<CommanderCommand> {
         forkSession: options.forkSession || false,
         resumeSessionAt: options.resumeSessionAt || undefined,
         rewindFiles: options.rewindFiles,
-        enableAuthStatus: options.enableAuthStatus,
+        enableAuthStatus: false,
         agent: agentCli,
         workload: options.workload,
         setupTrigger: setupTrigger ?? undefined,
@@ -2865,7 +2680,7 @@ async function run(): Promise<CommanderCommand> {
       cli_flag: options.model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       env_var: process.env.ANTHROPIC_MODEL as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       settings_file: (getInitialSettings() || {}).model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      subscriptionType: getSubscriptionType() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+      subscriptionType: 'local' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       agent: agentSetting as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
     });
 
@@ -3256,7 +3071,7 @@ async function run(): Promise<CommanderCommand> {
         thinkingConfig
       }, renderAndRun);
       return;
-    } else if (feature('KAIROS') && _pendingAssistantChat && (_pendingAssistantChat.sessionId || _pendingAssistantChat.discover)) {
+    } else if (false && feature('KAIROS') && _pendingAssistantChat && (_pendingAssistantChat.sessionId || _pendingAssistantChat.discover)) {
       // `claude assistant [sessionId]` — REPL as a pure viewer client
       // of a remote assistant session. The agentic loop runs remotely; this
       // process streams live events and POSTs messages. History is lazy-
@@ -3352,7 +3167,7 @@ async function run(): Promise<CommanderCommand> {
         thinkingConfig
       }, renderAndRun);
       return;
-    } else if (options.resume || options.fromPr || teleport || remote !== null) {
+    } else if (options.resume) {
       // Handle resume flow - from file (ant-only), session ID, or interactive selector
 
       // Clear stale caches before resuming to ensure fresh file/skill discovery
@@ -3366,20 +3181,6 @@ async function run(): Promise<CommanderCommand> {
       let searchTerm: string | undefined = undefined;
       // Store full LogOption when found by custom title (for cross-worktree resume)
       let matchedLog: LogOption | null = null;
-      // PR filter for --from-pr flag
-      let filterByPr: boolean | number | string | undefined = undefined;
-
-      // Handle --from-pr flag
-      if (options.fromPr) {
-        if (options.fromPr === true) {
-          // Show all sessions with linked PRs
-          filterByPr = true;
-        } else if (typeof options.fromPr === 'string') {
-          // Could be a PR number or URL
-          filterByPr = options.fromPr;
-        }
-      }
-
       // If resume value is not a UUID, try exact match by custom title first
       if (options.resume && typeof options.resume === 'string' && !maybeSessionId) {
         const trimmedValue = options.resume.trim();
@@ -3398,186 +3199,6 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // --remote and --teleport both create/resume Claude Code Web (CCR) sessions.
-      // Remote Control (--rc) is a separate feature gated in initReplBridge.ts.
-      if (remote !== null || teleport) {
-        await waitForPolicyLimitsToLoad();
-        if (!isPolicyAllowed('allow_remote_sessions')) {
-          return await exitWithError(root, "Error: Remote sessions are disabled by your organization's policy.", () => gracefulShutdown(1));
-        }
-      }
-      if (remote !== null) {
-        // Create remote session (optionally with initial prompt)
-        const hasInitialPrompt = remote.length > 0;
-
-        // Check if TUI mode is enabled - description is only optional in TUI mode
-        const isRemoteTuiEnabled = getFeatureValue_CACHED_MAY_BE_STALE('tengu_remote_backend', false);
-        if (!isRemoteTuiEnabled && !hasInitialPrompt) {
-          return await exitWithError(root, 'Error: --remote requires a description.\nUsage: claude --remote "your task description"', () => gracefulShutdown(1));
-        }
-        logEvent('tengu_remote_create_session', {
-          has_initial_prompt: String(hasInitialPrompt) as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-        });
-
-        // Pass current branch so CCR clones the repo at the right revision
-        const currentBranch = await getBranch();
-        const createdSession = await teleportToRemoteWithErrorHandling(root, hasInitialPrompt ? remote : null, new AbortController().signal, currentBranch || undefined);
-        if (!createdSession) {
-          logEvent('tengu_remote_create_session_error', {
-            error: 'unable_to_create_session' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-          });
-          return await exitWithError(root, 'Error: Unable to create remote session', () => gracefulShutdown(1));
-        }
-        logEvent('tengu_remote_create_session_success', {
-          session_id: createdSession.id as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-        });
-
-        // Check if new remote TUI mode is enabled via feature gate
-        if (!isRemoteTuiEnabled) {
-          // Original behavior: print session info and exit
-          process.stdout.write(`Created remote session: ${createdSession.title}\n`);
-          process.stdout.write(`View: ${getRemoteSessionUrl(createdSession.id)}?m=0\n`);
-          process.stdout.write(`Resume with: claude --teleport ${createdSession.id}\n`);
-          await gracefulShutdown(0);
-          process.exit(0);
-        }
-
-        // New behavior: start local TUI with CCR engine
-        // Mark that we're in remote mode for command visibility
-        setIsRemoteMode(true);
-        switchSession(asSessionId(createdSession.id));
-
-        // Get OAuth credentials for remote session
-        let apiCreds: {
-          accessToken: string;
-          orgUUID: string;
-        };
-        try {
-          apiCreds = await prepareApiRequest();
-        } catch (error) {
-          logError(toError(error));
-          return await exitWithError(root, `Error: ${errorMessage(error) || 'Failed to authenticate'}`, () => gracefulShutdown(1));
-        }
-
-        // Create remote session config for the REPL
-        const {
-          getClaudeAIOAuthTokens: getTokensForRemote
-        } = await import('./utils/auth.js');
-        const getAccessTokenForRemote = (): string => getTokensForRemote()?.accessToken ?? apiCreds.accessToken;
-        const remoteSessionConfig = createRemoteSessionConfig(createdSession.id, getAccessTokenForRemote, apiCreds.orgUUID, hasInitialPrompt);
-
-        // Add remote session info as initial system message
-        const remoteSessionUrl = `${getRemoteSessionUrl(createdSession.id)}?m=0`;
-        const remoteInfoMessage = createSystemMessage(`/remote-control is active. Code in CLI or at ${remoteSessionUrl}`, 'info');
-
-        // Create initial user message from the prompt if provided (CCR echoes it back but we ignore that)
-        const initialUserMessage = hasInitialPrompt ? createUserMessage({
-          content: remote
-        }) : null;
-
-        // Set remote session URL in app state for footer indicator
-        const remoteInitialState = {
-          ...initialState,
-          remoteSessionUrl
-        };
-
-        // Pre-filter commands to only include remote-safe ones.
-        // CCR's init response may further refine the list (via handleRemoteInit in REPL).
-        const remoteCommands = filterCommandsForRemoteMode(commands);
-        await launchRepl(root, {
-          getFpsMetrics,
-          stats,
-          initialState: remoteInitialState
-        }, {
-          debug: debug || debugToStderr,
-          commands: remoteCommands,
-          initialTools: [],
-          initialMessages: (initialUserMessage ? [remoteInfoMessage, initialUserMessage] : [remoteInfoMessage]) as MessageType[],
-          mcpClients: [],
-          autoConnectIdeFlag: ide,
-          mainThreadAgentDefinition,
-          disableSlashCommands,
-          remoteSessionConfig,
-          thinkingConfig
-        }, renderAndRun);
-        return;
-      } else if (teleport) {
-        if (teleport === true || teleport === '') {
-          // Interactive mode: show task selector and handle resume
-          logEvent('tengu_teleport_interactive_mode', {});
-          logForDebugging('selectAndResumeTeleportTask: Starting teleport flow...');
-          const teleportResult = await launchTeleportResumeWrapper(root);
-          if (!teleportResult) {
-            // User cancelled or error occurred
-            await gracefulShutdown(0);
-            process.exit(0);
-          }
-          const {
-            branchError
-          } = await checkOutTeleportedSessionBranch(teleportResult.branch);
-          messages = processMessagesForTeleportResume(teleportResult.log, branchError);
-        } else if (typeof teleport === 'string') {
-          logEvent('tengu_teleport_resume_session', {
-            mode: 'direct' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-          });
-          try {
-            // First, fetch session and validate repository before checking git state
-            const sessionData = await fetchSession(teleport);
-            const repoValidation = await validateSessionRepository(sessionData);
-
-            // Handle repo mismatch or not in repo cases
-            if (repoValidation.status === 'mismatch' || repoValidation.status === 'not_in_repo') {
-              const sessionRepo = repoValidation.sessionRepo;
-              if (sessionRepo) {
-                // Check for known paths
-                const knownPaths = getKnownPathsForRepo(sessionRepo);
-                const existingPaths = await filterExistingPaths(knownPaths);
-                if (existingPaths.length > 0) {
-                  // Show directory switch dialog
-                  const selectedPath = await launchTeleportRepoMismatchDialog(root, {
-                    targetRepo: sessionRepo,
-                    initialPaths: existingPaths
-                  });
-                  if (selectedPath) {
-                    // Change to the selected directory
-                    process.chdir(selectedPath);
-                    setCwd(selectedPath);
-                    setOriginalCwd(selectedPath);
-                  } else {
-                    // User cancelled
-                    await gracefulShutdown(0);
-                  }
-                } else {
-                  // No known paths - show original error
-                  throw new TeleportOperationError(`You must run claude --teleport ${teleport} from a checkout of ${sessionRepo}.`, chalk.red(`You must run claude --teleport ${teleport} from a checkout of ${chalk.bold(sessionRepo)}.\n`));
-                }
-              }
-            } else if (repoValidation.status === 'error') {
-              throw new TeleportOperationError(repoValidation.errorMessage || 'Failed to validate session', chalk.red(`Error: ${repoValidation.errorMessage || 'Failed to validate session'}\n`));
-            }
-            await validateGitState();
-
-            // Use progress UI for teleport
-            const {
-              teleportWithProgress
-            } = await import('./components/TeleportProgress.js');
-            const result = await teleportWithProgress(root, teleport);
-            // Track teleported session for reliability logging
-            setTeleportedSessionInfo({
-              sessionId: teleport
-            });
-            messages = result.messages;
-          } catch (error) {
-            if (error instanceof TeleportOperationError) {
-              process.stderr.write(error.formattedMessage + '\n');
-            } else {
-              logError(error);
-              process.stderr.write(chalk.red(`Error: ${errorMessage(error)}\n`));
-            }
-            await gracefulShutdown(1);
-          }
-        }
-      }
       if (("external" as string) === 'ant') {
         if (options.resume && typeof options.resume === 'string' && !maybeSessionId) {
           // Check for ccshare URL (e.g. https://go/ccshare/boris-20260311-211036)
@@ -3704,19 +3325,6 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // Await file downloads before rendering REPL (files must be available)
-      if (fileDownloadPromise) {
-        try {
-          const results = await fileDownloadPromise;
-          const failedCount = count(results, r => !r.success);
-          if (failedCount > 0) {
-            process.stderr.write(chalk.yellow(`Warning: ${failedCount}/${results.length} file(s) failed to download.\n`));
-          }
-        } catch (error) {
-          return await exitWithError(root, `Error downloading files: ${errorMessage(error)}`);
-        }
-      }
-
       // If we have a processed resume or teleport messages, render the REPL
       const resumeData = processedResume ?? (Array.isArray(messages) ? {
         messages,
@@ -3753,8 +3361,7 @@ async function run(): Promise<CommanderCommand> {
         }, getWorktreePaths(getOriginalCwd()), {
           ...sessionConfig,
           initialSearchQuery: searchTerm,
-          forkSession: options.forkSession,
-          filterByPr
+          forkSession: options.forkSession
         });
       }
     } else {
@@ -3860,13 +3467,6 @@ async function run(): Promise<CommanderCommand> {
   // Enable SDK URL for all builds but hide from help
   program.addOption(new Option('--sdk-url <url>', 'Use remote WebSocket endpoint for SDK I/O streaming (only with -p and stream-json format)').hideHelp());
 
-  // Enable teleport/remote flags for all builds but keep them undocumented until GA
-  program.addOption(new Option('--teleport [session]', 'Resume a teleport session, optionally specify session ID').hideHelp());
-  program.addOption(new Option('--remote [description]', 'Create a remote session with the given description').hideHelp());
-  if (feature('BRIDGE_MODE')) {
-    program.addOption(new Option('--remote-control [name]', 'Start an interactive session with Remote Control enabled (optionally named)').argParser(value => value || true).hideHelp());
-    program.addOption(new Option('--rc [name]', 'Alias for --remote-control').argParser(value => value || true).hideHelp());
-  }
   if (feature('HARD_FAIL')) {
     program.addOption(new Option('--hard-fail', 'Crash on logError calls instead of silently logging').hideHelp());
   }
@@ -3888,74 +3488,6 @@ async function run(): Promise<CommanderCommand> {
     profileCheckpoint('run_after_parse');
     return program;
   }
-
-  // claude mcp
-
-  const mcp = program.command('mcp').description('Configure and manage MCP servers').configureHelp(createSortedHelpConfig()).enablePositionalOptions();
-  mcp.command('serve').description(`Start the Claude Code MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
-    debug,
-    verbose
-  }: {
-    debug?: boolean;
-    verbose?: boolean;
-  }) => {
-    const {
-      mcpServeHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpServeHandler({
-      debug,
-      verbose
-    });
-  });
-
-  // Register the mcp add subcommand (extracted for testability)
-  registerMcpAddCommand(mcp);
-  if (isXaaEnabled()) {
-    registerMcpXaaIdpCommand(mcp);
-  }
-  mcp.command('remove <name>').description('Remove an MCP server').option('-s, --scope <scope>', 'Configuration scope (local, user, or project) - if not specified, removes from whichever scope it exists in').action(async (name: string, options: {
-    scope?: string;
-  }) => {
-    const {
-      mcpRemoveHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpRemoveHandler(name, options);
-  });
-  mcp.command('list').description('List configured MCP servers. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
-    const {
-      mcpListHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpListHandler();
-  });
-  mcp.command('get <name>').description('Get details about an MCP server. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async (name: string) => {
-    const {
-      mcpGetHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpGetHandler(name);
-  });
-  mcp.command('add-json <name> <json>').description('Add an MCP server (stdio or SSE) with a JSON string').option('-s, --scope <scope>', 'Configuration scope (local, user, or project)', 'local').option('--client-secret', 'Prompt for OAuth client secret (or set MCP_CLIENT_SECRET env var)').action(async (name: string, json: string, options: {
-    scope?: string;
-    clientSecret?: true;
-  }) => {
-    const {
-      mcpAddJsonHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpAddJsonHandler(name, json, options);
-  });
-  mcp.command('add-from-claude-desktop').description('Import MCP servers from Claude Desktop (Mac and WSL only)').option('-s, --scope <scope>', 'Configuration scope (local, user, or project)', 'local').action(async (options: {
-    scope?: string;
-  }) => {
-    const {
-      mcpAddFromDesktopHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpAddFromDesktopHandler(options);
-  });
-  mcp.command('reset-project-choices').description('Reset all approved and rejected project-scoped (.mcp.json) servers within this project').action(async () => {
-    const {
-      mcpResetChoicesHandler
-    } = await import('./cli/handlers/mcp.js');
-    await mcpResetChoicesHandler();
-  });
 
   // claude server
   if (feature('DIRECT_CONNECT')) {
@@ -4042,7 +3574,7 @@ async function run(): Promise<CommanderCommand> {
   // (parallels the DIRECT_CONNECT/cc:// pattern above). If commander reaches
   // this action it means the argv rewrite didn't fire (e.g. user ran
   // `claude ssh` with no host) — just print usage.
-  if (feature('SSH_REMOTE')) {
+  if (false && feature('SSH_REMOTE')) {
     program.command('ssh <host> [dir]').description('Run Claude Code on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
       // Argv rewriting in main() should have consumed `ssh <host>` before
       // commander runs. Reaching here means host was missing or the
@@ -4055,7 +3587,7 @@ async function run(): Promise<CommanderCommand> {
   // claude connect — subcommand only handles -p (headless) mode.
   // Interactive mode (without -p) is handled by early argv rewriting in main()
   // which redirects to the main command with full TUI support.
-  if (feature('DIRECT_CONNECT')) {
+  if (false && feature('DIRECT_CONNECT')) {
     program.command('open <cc-url>').description('Connect to a Claude Code server (internal — use cc:// URLs)').option('-p, --print [prompt]', 'Print mode (headless)').option('--output-format <format>', 'Output format: text, json, stream-json', 'text').action(async (ccUrl: string, opts: {
       print?: string | true;
       outputFormat?: string;
@@ -4095,54 +3627,15 @@ async function run(): Promise<CommanderCommand> {
     });
   }
 
-  // claude auth
-
-  const auth = program.command('auth').description('Manage authentication').configureHelp(createSortedHelpConfig());
-  auth.command('login').description('Sign in to your Anthropic account').option('--email <email>', 'Pre-populate email address on the login page').option('--sso', 'Force SSO login flow').option('--console', 'Use Anthropic Console (API usage billing) instead of Claude subscription').option('--claudeai', 'Use Claude subscription (default)').action(async ({
-    email,
-    sso,
-    console: useConsole,
-    claudeai
-  }: {
-    email?: string;
-    sso?: boolean;
-    console?: boolean;
-    claudeai?: boolean;
-  }) => {
-    const {
-      authLogin
-    } = await import('./cli/handlers/auth.js');
-    await authLogin({
-      email,
-      sso,
-      console: useConsole,
-      claudeai
-    });
-  });
-  auth.command('status').description('Show authentication status').option('--json', 'Output as JSON (default)').option('--text', 'Output as human-readable text').action(async (opts: {
-    json?: boolean;
-    text?: boolean;
-  }) => {
-    const {
-      authStatus
-    } = await import('./cli/handlers/auth.js');
-    await authStatus(opts);
-  });
-  auth.command('logout').description('Log out from your Anthropic account').action(async () => {
-    const {
-      authLogout
-    } = await import('./cli/handlers/auth.js');
-    await authLogout();
-  });
-
   /**
    * Helper function to handle marketplace command errors consistently.
    * Logs the error and exits the process with status 1.
    * @param error The error that occurred
    * @param action Description of the action that failed
    */
-  // Hidden flag on all plugin/marketplace subcommands to target cowork_plugins.
-  const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
+  if (false) {
+    // Hidden flag on all plugin/marketplace subcommands to target cowork_plugins.
+    const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
 
   // Plugin validate command
   const pluginCmd = program.command('plugin').alias('plugins').description('Manage Claude Code plugins').configureHelp(createSortedHelpConfig());
@@ -4261,18 +3754,8 @@ async function run(): Promise<CommanderCommand> {
     } = await import('./cli/handlers/plugins.js');
     await pluginUpdateHandler(plugin, options);
   });
-  // END ANT-ONLY
-
-  // Setup token command
-  program.command('setup-token').description('Set up a long-lived authentication token (requires Claude subscription)').action(async () => {
-    const [{
-      setupTokenHandler
-    }, {
-      createRoot
-    }] = await Promise.all([import('./cli/handlers/util.js'), import('./ink.js')]);
-    const root = await createRoot(getBaseRenderOptions(false));
-    await setupTokenHandler(root);
-  });
+    // END ANT-ONLY
+  }
 
   // Agents command - list configured agents
   program.command('agents').description('List configured agents').option('--setting-sources <sources>', 'Comma-separated list of setting sources to load (user, project, local).').action(async () => {
@@ -4319,7 +3802,7 @@ async function run(): Promise<CommanderCommand> {
   // false via the try/catch — but not before paying ~65ms of side effects
   // (25ms settings Zod parse + 40ms sync `security` keychain subprocess).
   // The dynamic visibility never worked; the command was always hidden.
-  if (feature('BRIDGE_MODE')) {
+  if (false && feature('BRIDGE_MODE')) {
     program.command('remote-control', {
       hidden: true
     }).alias('rc').description('Connect your local environment for remote-control sessions via claude.ai/code').action(async () => {
@@ -4331,7 +3814,7 @@ async function run(): Promise<CommanderCommand> {
       await bridgeMain(process.argv.slice(3));
     });
   }
-  if (feature('KAIROS')) {
+  if (false && feature('KAIROS')) {
     program.command('assistant [sessionId]').description('Attach the REPL as a client to a running bridge session. Discovers sessions via API if no sessionId given.').action(() => {
       // Argv rewriting above should have consumed `assistant [id]`
       // before commander runs. Reaching here means a root flag came first
@@ -4343,7 +3826,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // Doctor command - check installation health
-  program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
+  if (false) program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
     const [{
       doctorHandler
     }, {
@@ -4359,7 +3842,7 @@ async function run(): Promise<CommanderCommand> {
   // - We perform exact string comparison (including SHA) to detect any change
   // - This ensures users always get the latest build, even when only the SHA changes
   // - UI shows both versions including build metadata for clarity
-  program.command('update').alias('upgrade').description('Check for updates and install if available').action(async () => {
+  if (false) program.command('update').alias('upgrade').description('Check for updates and install if available').action(async () => {
     const {
       update
     } = await import('src/cli/update.js');

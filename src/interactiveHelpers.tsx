@@ -108,18 +108,8 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
   }
   const config = getGlobalConfig();
   let onboardingShown = false;
-  if (!config.theme || !config.hasCompletedOnboarding // always show onboarding at least once
-  ) {
-    onboardingShown = true;
-    const {
-      Onboarding
-    } = await import('./components/Onboarding.js');
-    await showSetupDialog(root, done => <Onboarding onDone={() => {
-      completeOnboarding();
-      void done();
-    }} />, {
-      onChangeAppState
-    });
+  if (!config.hasCompletedOnboarding) {
+    completeOnboarding();
   }
 
   // Always show the trust dialog in interactive sessions, regardless of permission mode.
