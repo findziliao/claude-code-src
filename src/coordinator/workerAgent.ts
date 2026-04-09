@@ -1,4 +1,5 @@
-// Auto-generated stub — replace with real implementation
-export {};
-import type { AgentDefinition } from '../tools/AgentTool/loadAgentsDir.js';
-export const getCoordinatorAgents: () => AgentDefinition[] = () => [];
+/** Stubbed — coordinator/workerAgent is behind feature flag COORDINATOR_MODE. */
+
+import type { AgentDefinition } from '../tools/AgentTool/loadAgentsDir.js'
+
+export const getCoordinatorAgents: () => AgentDefinition[] = () => []

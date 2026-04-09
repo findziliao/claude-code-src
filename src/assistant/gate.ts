@@ -1,3 +1,3 @@
-// Auto-generated stub — replace with real implementation
-export {};
-export const isKairosEnabled: () => Promise<boolean> = () => Promise.resolve(false);
+/** Stubbed — assistant/gate is behind feature flag KAIROS. */
+
+export const isKairosEnabled: () => Promise<boolean> = () => Promise.resolve(false)

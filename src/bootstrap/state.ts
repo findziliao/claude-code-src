@@ -1,9 +1,10 @@
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import type { Attributes, Meter, MetricOptions } from '@opentelemetry/api'
 import type { logs } from '@opentelemetry/api-logs'
-import type { LoggerProvider } from '@opentelemetry/sdk-logs'
-import type { MeterProvider } from '@opentelemetry/sdk-metrics'
-import type { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+// Stubbed SDK types — original packages removed for local-only builds
+type LoggerProvider = { getLogger: (...args: unknown[]) => unknown; shutdown: () => Promise<void> }
+type MeterProvider = { getMeter: (...args: unknown[]) => Meter; shutdown: () => Promise<void> }
+type BasicTracerProvider = { shutdown: () => Promise<void> }
 import { realpathSync } from 'fs'
 import sumBy from 'lodash-es/sumBy.js'
 import { cwd } from 'process'

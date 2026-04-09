@@ -1,3 +1,3 @@
-// Auto-generated stub — replace with real implementation
-export {};
-export const environmentRunnerMain: (args: string[]) => Promise<void> = () => Promise.resolve();
+/** Stubbed — environment-runner/main is behind feature flag ENVIRONMENT_RUNNER. */
+
+export const environmentRunnerMain: (args: string[]) => Promise<void> = () => Promise.resolve()

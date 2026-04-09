@@ -16,6 +16,12 @@ if (typeof globalThis.MACRO === "undefined") {
 (globalThis as any).BUILD_ENV = "production";
 (globalThis as any).INTERFACE_TYPE = "stdio";
 
+// Disable all telemetry, non-essential traffic and auto-updates by default.
+// This build is for local code-generation use only.
+process.env.DISABLE_TELEMETRY ??= "1";
+process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC ??= "1";
+process.env.DISABLE_AUTOUPDATER ??= "1";
+
 // Bugfix for corepack auto-pinning, which adds yarnpkg to peoples' package.jsons
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
 process.env.COREPACK_ENABLE_AUTO_PIN = "0";

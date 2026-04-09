@@ -4,112 +4,121 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **reverse-engineered / decompiled** version of Anthropic's official Claude Code CLI tool. The goal is to restore core functionality while trimming secondary capabilities. Many modules are stubbed or feature-flagged off. The codebase has ~1341 tsc errors from decompilation (mostly `unknown`/`never`/`{}` types) — these do **not** block Bun runtime execution.
+This repository is a reverse-engineered/decompiled version of Anthropic's Claude Code CLI. The practical goal is to keep core CLI behavior running under Bun while secondary/internal features are stubbed or disabled.
 
-## Commands
+Important reality of this codebase:
+- TypeScript has many decompilation artifacts (large `unknown`/`never`/`{}` error volume).
+- Runtime behavior (Bun execution) is the primary correctness target, not a clean `tsc` pass.
+
+## Environment & Prerequisites (from README)
+
+- Bun >= 1.3.11 (required)
+- Node.js >= 18 (some dependencies require it)
+- Valid credentials for one provider: Anthropic API key, or Bedrock/Vertex/Azure setup
+
+## Development Commands
 
 ```bash
 # Install dependencies
 bun install
 
-# Dev mode (direct execution via Bun)
+# Run CLI in dev mode
 bun run dev
-# equivalent to: bun run src/entrypoints/cli.tsx
+# same as: bun run src/entrypoints/cli.tsx
 
 # Pipe mode
 echo "say hello" | bun run src/entrypoints/cli.tsx -p
 
-# Build (outputs dist/cli.js, ~25MB)
+# Build distributable bundle
 bun run build
+# outputs dist/cli.js
 ```
 
-No test runner is configured. No linter is configured.
+### Lint / Typecheck / Tests status
 
-## Architecture
+- Lint: no lint script is configured in `package.json`.
+- Tests: no test runner is configured in this repository.
+- Single-test command: not available (no test framework wiring yet).
+- Type check exists but is not a quality gate in this repo due decompilation noise:
 
-### Runtime & Build
+```bash
+bun x tsc --noEmit
+```
 
-- **Runtime**: Bun (not Node.js). All imports, builds, and execution use Bun APIs.
-- **Build**: `bun build src/entrypoints/cli.tsx --outdir dist --target bun` — single-file bundle.
-- **Module system**: ESM (`"type": "module"`), TSX with `react-jsx` transform.
-- **Monorepo**: Bun workspaces — internal packages live in `packages/` resolved via `workspace:*`.
+## High-Level Architecture
 
-### Entry & Bootstrap
+### 1) Startup and bootstrap flow
 
-1. **`src/entrypoints/cli.tsx`** — True entrypoint. Injects runtime polyfills at the top:
-   - `feature()` always returns `false` (all feature flags disabled, skipping unimplemented branches).
-   - `globalThis.MACRO` — simulates build-time macro injection (VERSION, BUILD_TIME, etc.).
-   - `BUILD_TARGET`, `BUILD_ENV`, `INTERFACE_TYPE` globals.
-2. **`src/main.tsx`** — Commander.js CLI definition. Parses args, initializes services (auth, analytics, policy), then launches the REPL or runs in pipe mode.
-3. **`src/entrypoints/init.ts`** — One-time initialization (telemetry, config, trust dialog).
+- `src/entrypoints/cli.tsx` is the true entrypoint.
+- It injects runtime polyfills/macros before loading the rest of the app, then decides fast-paths (e.g. `--version`) vs full startup.
+- For normal startup it dynamically imports `src/main.tsx`.
 
-### Core Loop
+Why this matters: if behavior differs between build-time and dev-time, start by checking `cli.tsx` polyfills and fast-path branching.
 
-- **`src/query.ts`** — The main API query function. Sends messages to Claude API, handles streaming responses, processes tool calls, and manages the conversation turn loop.
-- **`src/QueryEngine.ts`** — Higher-level orchestrator wrapping `query()`. Manages conversation state, compaction, file history snapshots, attribution, and turn-level bookkeeping. Used by the REPL screen.
-- **`src/screens/REPL.tsx`** — The interactive REPL screen (React/Ink component). Handles user input, message display, tool permission prompts, and keyboard shortcuts.
+### 2) Main CLI assembly
 
-### API Layer
+- `src/main.tsx` wires Commander commands/options, settings/config loading, auth/bootstrap, MCP/plugin initialization, and launches REPL/headless flows.
+- It is the orchestration layer for app startup, not the per-turn model loop.
 
-- **`src/services/api/claude.ts`** — Core API client. Builds request params (system prompt, messages, tools, betas), calls the Anthropic SDK streaming endpoint, and processes `BetaRawMessageStreamEvent` events.
-- Supports multiple providers: Anthropic direct, AWS Bedrock, Google Vertex, Azure.
-- Provider selection in `src/utils/model/providers.ts`.
+### 3) Conversation execution core
 
-### Tool System
+- `src/QueryEngine.ts` is the turn/session orchestrator used by the app surface.
+  - Maintains mutable conversation state, usage accounting, permission denials, file-state snapshots, and submit loop lifecycle.
+- `src/query.ts` implements the low-level streaming query loop.
+  - Handles model streaming events, tool-use/result continuation, compacting paths, and turn budget logic.
 
-- **`src/Tool.ts`** — Tool interface definition (`Tool` type) and utilities (`findToolByName`, `toolMatchesName`).
-- **`src/tools.ts`** — Tool registry. Assembles the tool list; some tools are conditionally loaded via `feature()` flags or `process.env.USER_TYPE`.
-- **`src/tools/<ToolName>/`** — Each tool in its own directory (e.g., `BashTool`, `FileEditTool`, `GrepTool`, `AgentTool`).
-- Tools define: `name`, `description`, `inputSchema` (JSON Schema), `call()` (execution), and optionally a React component for rendering results.
+Rule of thumb:
+- "Why did this turn/session behave this way?" -> start in `QueryEngine.ts`
+- "Why did this specific stream/tool continuation happen?" -> inspect `query.ts`
 
-### UI Layer (Ink)
+### 4) API/provider layer
 
-- **`src/ink.ts`** — Ink render wrapper with ThemeProvider injection.
-- **`src/ink/`** — Custom Ink framework (forked/internal): custom reconciler, hooks (`useInput`, `useTerminalSize`, `useSearchHighlight`), virtual list rendering.
-- **`src/components/`** — React components rendered in terminal via Ink. Key ones:
-  - `App.tsx` — Root provider (AppState, Stats, FpsMetrics).
-  - `Messages.tsx` / `MessageRow.tsx` — Conversation message rendering.
-  - `PromptInput/` — User input handling.
-  - `permissions/` — Tool permission approval UI.
-- Components use React Compiler runtime (`react/compiler-runtime`) — decompiled output has `_c()` memoization calls throughout.
+- `src/services/api/claude.ts` builds API request payloads and handles streaming responses.
+- Provider routing is abstracted so Anthropic direct, Bedrock, Vertex, and Azure can be used through one flow.
 
-### State Management
+### 5) Tool system
 
-- **`src/state/AppState.tsx`** — Central app state type and context provider. Contains messages, tools, permissions, MCP connections, etc.
-- **`src/state/store.ts`** — Zustand-style store for AppState.
-- **`src/bootstrap/state.ts`** — Module-level singletons for session-global state (session ID, CWD, project root, token counts).
+- Tool contract: `src/Tool.ts`
+- Built-in tool registry and gating: `src/tools.ts`
+  - Final tool pool is assembled by environment/mode/feature checks and permission filtering.
+- Concrete tools live in `src/tools/<ToolName>/`.
 
-### Context & System Prompt
+When adding/changing tools, check all three layers: tool implementation, registry inclusion (`tools.ts`), and permission/mode visibility.
 
-- **`src/context.ts`** — Builds system/user context for the API call (git status, date, CLAUDE.md contents, memory files).
-- **`src/utils/claudemd.ts`** — Discovers and loads CLAUDE.md files from project hierarchy.
+### 6) Context and prompt composition
 
-### Feature Flag System
+- `src/context.ts` builds cached system/user context injected into requests.
+  - Includes git snapshot, date, CLAUDE.md content, and memory files.
+- `src/utils/claudemd.ts` discovers and loads CLAUDE.md sources.
 
-All `feature('FLAG_NAME')` calls come from `bun:bundle` (a build-time API). In this decompiled version, `feature()` is polyfilled to always return `false` in `cli.tsx`. This means all Anthropic-internal features (COORDINATOR_MODE, KAIROS, PROACTIVE, etc.) are disabled.
+### 7) UI and state
 
-### Stubbed/Deleted Modules
+- REPL UI: `src/screens/REPL.tsx` + components under `src/components/`.
+- Shared app state: `src/state/*`
+- Session-global bootstrap state: `src/bootstrap/state.ts`
 
-| Module | Status |
-|--------|--------|
-| Computer Use (`@ant/*`) | Stub packages in `packages/@ant/` |
-| `*-napi` packages (audio, image, url, modifiers) | Stubs in `packages/` (except `color-diff-napi` which is fully implemented) |
-| Analytics / GrowthBook / Sentry | Empty implementations |
-| Magic Docs / Voice Mode / LSP Server | Removed |
-| Plugins / Marketplace | Removed |
-| MCP OAuth | Simplified |
+## Feature Flags and Stubs (Critical)
 
-### Key Type Files
+- `feature()` is imported from `bun:bundle` across the codebase.
+- In this external/decompiled build, `src/entrypoints/cli.tsx` provides a runtime polyfill where `feature()` always returns `false`.
+- Therefore, many Anthropic-internal branches are intentionally unreachable here.
 
-- **`src/types/global.d.ts`** — Declares `MACRO`, `BUILD_TARGET`, `BUILD_ENV` and internal Anthropic-only identifiers.
-- **`src/types/internal-modules.d.ts`** — Type declarations for `bun:bundle`, `bun:ffi`, `@anthropic-ai/mcpb`.
-- **`src/types/message.ts`** — Message type hierarchy (UserMessage, AssistantMessage, SystemMessage, etc.).
-- **`src/types/permissions.ts`** — Permission mode and result types.
+Do not spend time implementing code that is only reachable behind feature flags unless you also change this gating model.
 
-## Working with This Codebase
+## Monorepo / Workspace layout
 
-- **Don't try to fix all tsc errors** — they're from decompilation and don't affect runtime.
-- **`feature()` is always `false`** — any code behind a feature flag is dead code in this build.
-- **React Compiler output** — Components have decompiled memoization boilerplate (`const $ = _c(N)`). This is normal.
-- **`bun:bundle` import** — In `src/main.tsx` and other files, `import { feature } from 'bun:bundle'` works at build time. At dev-time, the polyfill in `cli.tsx` provides it.
-- **`src/` path alias** — tsconfig maps `src/*` to `./src/*`. Imports like `import { ... } from 'src/utils/...'` are valid.
+- Bun workspace monorepo (`package.json` workspaces)
+- Internal/stub packages are under `packages/` and `packages/@ant/`
+- Most `*-napi` and `@ant/*` packages are placeholders; `color-diff-napi` is the notable fully implemented package
+
+## Practical Guidance for Future Claude Instances
+
+- Prioritize runtime behavior (`bun run dev`) over strict typing cleanup.
+- Before large refactors, verify whether target paths are feature-gated dead code.
+- For startup issues, trace: `entrypoints/cli.tsx` -> `main.tsx`.
+- For generation/tool loop issues, trace: `QueryEngine.ts` -> `query.ts` -> `services/api/claude.ts`.
+
+## Repository-specific instruction sources
+
+- README.md exists and is relevant (project goals, environment, run/build commands).
+- No `.cursorrules`, no `.cursor/rules/`, and no `.github/copilot-instructions.md` were found at repository root during analysis.

@@ -1,4 +1,5 @@
-// Auto-generated stub — replace with real implementation
-export {};
-import type { Message } from 'src/types/message.js';
-export const projectView: (messages: Message[]) => Message[] = (messages) => messages;
+/** Stubbed — services/contextCollapse/operations is behind feature flag CONTEXT_COLLAPSE. */
+
+import type { Message } from '../../types/message.js'
+
+export const projectView: (messages: Message[]) => Message[] = (messages) => messages

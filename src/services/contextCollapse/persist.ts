@@ -1,3 +1,3 @@
-// Auto-generated stub — replace with real implementation
-export {};
-export const restoreFromEntries: (...args: unknown[]) => void = () => {};
+/** Stubbed — services/contextCollapse/persist is behind feature flag CONTEXT_COLLAPSE. */
+
+export const restoreFromEntries: (...args: unknown[]) => void = () => {}
