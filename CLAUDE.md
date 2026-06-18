@@ -36,14 +36,21 @@ bun run build
 
 ### Lint / Typecheck / Tests status
 
-- Lint: no lint script is configured in `package.json`.
+- Lint: `@biomejs/biome` is in devDependencies but no `lint` script is wired in `package.json`. You can run it directly:
+  ```bash
+  bun x biome check src/
+  ```
 - Tests: no test runner is configured in this repository.
-- Single-test command: not available (no test framework wiring yet).
-- Type check exists but is not a quality gate in this repo due decompilation noise:
+- Type check exists but is not a quality gate in this repo due to decompilation noise:
+  ```bash
+  bun x tsc --noEmit
+  ```
 
-```bash
-bun x tsc --noEmit
-```
+### Automation scripts (`scripts/`)
+
+- `create-type-stubs.mjs` — generate stub type declarations for internal packages
+- `fix-default-stubs.mjs` / `fix-missing-exports.mjs` — patch decompilation export issues
+- `remove-sourcemaps.mjs` — strip sourcemap references from decompiled output
 
 ## High-Level Architecture
 
@@ -91,7 +98,12 @@ When adding/changing tools, check all three layers: tool implementation, registr
   - Includes git snapshot, date, CLAUDE.md content, and memory files.
 - `src/utils/claudemd.ts` discovers and loads CLAUDE.md sources.
 
-### 7) UI and state
+### 7) SDK type surface
+
+- `src/entrypoints/sdk/` exports the public type contracts (control schemas, core types, tool types, settings types).
+- These are the types external consumers (Agent SDK, IDE extensions) depend on — changes here have broader impact.
+
+### 8) UI and state
 
 - REPL UI: `src/screens/REPL.tsx` + components under `src/components/`.
 - Shared app state: `src/state/*`
@@ -117,8 +129,15 @@ Do not spend time implementing code that is only reachable behind feature flags 
 - Before large refactors, verify whether target paths are feature-gated dead code.
 - For startup issues, trace: `entrypoints/cli.tsx` -> `main.tsx`.
 - For generation/tool loop issues, trace: `QueryEngine.ts` -> `query.ts` -> `services/api/claude.ts`.
+- The `tsconfig.json` uses `"strict": false` and path alias `src/*` -> `./src/*` — keep these in mind when adding imports.
 
-## Repository-specific instruction sources
+## Config directory rename (project-specific)
 
-- README.md exists and is relevant (project goals, environment, run/build commands).
-- No `.cursorrules`, no `.cursor/rules/`, and no `.github/copilot-instructions.md` were found at repository root during analysis.
+This fork uses `.myclaude` instead of `.claude` everywhere a config path appears, and the env var that overrides the user-config home is `MYCLAUDE_CONFIG_DIR` (not `CLAUDE_CONFIG_DIR`). Applies to:
+- User config home: `~/.myclaude/` and the global state file `~/.myclaude.json`
+- Project-level dirs: `<repo>/.myclaude/{settings.json,agents,skills,rules,scheduled_tasks.json,worktrees,...}`
+- Children inherit the env var name via `src/utils/swarm/spawnUtils.ts`
+
+Not renamed (kept identical to upstream):
+- CCR container paths (`/home/claude/.claude/remote/...`) and homespace pod paths (`/root/.claude/...`) — fixed by Anthropic infra
+- Theme color name `"claude"`, `process.title`, `program.name('claude')`, analytics identifiers, `.claude-plugin` directory convention, and all `*.claude.com` / `*.claude.ai` URLs

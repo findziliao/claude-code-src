@@ -11,6 +11,7 @@
     ],
     "scripts": {
         "build": "bun build src/entrypoints/cli.tsx --outdir dist --target bun",
+        "build:linux-amd64": "node scripts/build-linux-amd64.mjs",
         "dev": "bun run src/entrypoints/cli.tsx",
         "prepublishOnly": "bun run build"
     },

@@ -1,6 +1,6 @@
 node_modules
 .DS_Store
-dist
+dist/
 coverage
 .env
 *.log
@@ -8,3 +8,5 @@ coverage
 .vscode
 *.suo
 *.lock
+claude.exe
+.18a79fffa7ff57fe-00000000.bun-build
