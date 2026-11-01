@@ -34,7 +34,6 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from 'src/services/analytics/index.js'
-import { getMaxVersion, shouldSkipVersion } from '../autoUpdater.js'
 import { registerCleanup } from '../cleanupRegistry.js'
 import { getGlobalConfig, saveGlobalConfig } from '../config.js'
 import { logForDebugging } from '../debug.js'
@@ -47,7 +46,6 @@ import { execFileNoThrowWithCwd } from '../execFileNoThrow.js'
 import { getShellType } from '../localInstaller.js'
 import * as lockfile from '../lockfile.js'
 import { logError } from '../log.js'
-import { gt, gte } from '../semver.js'
 import {
   filterClaudeAliases,
   getShellConfigPaths,
@@ -61,7 +59,6 @@ import {
   getXDGDataHome,
   getXDGStateHome,
 } from '../xdg.js'
-import { downloadVersion, getLatestVersion } from './download.js'
 import {
   acquireProcessLifetimeLock,
   cleanupStaleLocks,
@@ -438,186 +435,6 @@ async function installVersion(
  * Performs the core update operation: download (if needed), install, and update symlink.
  * Returns whether a new install was performed (vs just updating symlink).
  */
-async function performVersionUpdate(
-  version: string,
-  forceReinstall: boolean,
-): Promise<boolean> {
-  const { stagingPath: baseStagingPath, installPath } =
-    await getVersionPaths(version)
-  const { executable: executablePath } = getBaseDirectories()
-
-  // For lockless updates, use a unique staging path to avoid conflicts between concurrent downloads
-  const stagingPath = isEnvTruthy(process.env.ENABLE_LOCKLESS_UPDATES)
-    ? `${baseStagingPath}.${process.pid}.${Date.now()}`
-    : baseStagingPath
-
-  // Only download if not already installed (or if force reinstall)
-  const needsInstall = !(await versionIsAvailable(version)) || forceReinstall
-  if (needsInstall) {
-    logForDebugging(
-      forceReinstall
-        ? `Force reinstalling native installer version ${version}`
-        : `Downloading native installer version ${version}`,
-    )
-    const downloadType = await downloadVersion(version, stagingPath)
-    await installVersion(stagingPath, installPath, downloadType)
-  } else {
-    logForDebugging(`Version ${version} already installed, updating symlink`)
-  }
-
-  // Create direct symlink from ~/.local/bin/claude to the version binary
-  await removeDirectoryIfEmpty(executablePath)
-  await updateSymlink(executablePath, installPath)
-
-  // Verify the executable was actually created/updated
-  if (!(await isPossibleClaudeBinary(executablePath))) {
-    let installPathExists = false
-    try {
-      await stat(installPath)
-      installPathExists = true
-    } catch {
-      // installPath doesn't exist
-    }
-    throw new Error(
-      `Failed to create executable at ${executablePath}. ` +
-        `Source file exists: ${installPathExists}. ` +
-        `Check write permissions to ${executablePath}.`,
-    )
-  }
-  return needsInstall
-}
-
-async function versionIsAvailable(version: string): Promise<boolean> {
-  const { installPath } = await getVersionPaths(version)
-  return isPossibleClaudeBinary(installPath)
-}
-
-async function updateLatest(
-  channelOrVersion: string,
-  forceReinstall: boolean = false,
-): Promise<{
-  success: boolean
-  latestVersion: string
-  lockFailed?: boolean
-  lockHolderPid?: number
-}> {
-  const startTime = Date.now()
-  let version = await getLatestVersion(channelOrVersion)
-  const { executable: executablePath } = getBaseDirectories()
-
-  logForDebugging(`Checking for native installer update to version ${version}`)
-
-  // Check if max version is set (server-side kill switch for auto-updates)
-  if (!forceReinstall) {
-    const maxVersion = await getMaxVersion()
-    if (maxVersion && gt(version, maxVersion)) {
-      logForDebugging(
-        `Native installer: maxVersion ${maxVersion} is set, capping update from ${version} to ${maxVersion}`,
-      )
-      // If we're already at or above maxVersion, skip the update entirely
-      if (gte(MACRO.VERSION, maxVersion)) {
-        logForDebugging(
-          `Native installer: current version ${MACRO.VERSION} is already at or above maxVersion ${maxVersion}, skipping update`,
-        )
-        logEvent('tengu_native_update_skipped_max_version', {
-          latency_ms: Date.now() - startTime,
-          max_version:
-            maxVersion as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-          available_version:
-            version as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-        })
-        return { success: true, latestVersion: version }
-      }
-      version = maxVersion
-    }
-  }
-
-  // Early exit: if we're already running this exact version AND both the version binary
-  // and executable exist and are valid. We need to proceed if the executable doesn't exist,
-  // is invalid (e.g., empty/corrupted from a failed install), or we're running via npx.
-  if (
-    !forceReinstall &&
-    version === MACRO.VERSION &&
-    (await versionIsAvailable(version)) &&
-    (await isPossibleClaudeBinary(executablePath))
-  ) {
-    logForDebugging(`Found ${version} at ${executablePath}, skipping install`)
-    logEvent('tengu_native_update_complete', {
-      latency_ms: Date.now() - startTime,
-      was_new_install: false,
-      was_force_reinstall: false,
-      was_already_running: true,
-    })
-    return { success: true, latestVersion: version }
-  }
-
-  // Check if this version should be skipped due to minimumVersion setting
-  if (!forceReinstall && shouldSkipVersion(version)) {
-    logEvent('tengu_native_update_skipped_minimum_version', {
-      latency_ms: Date.now() - startTime,
-      target_version:
-        version as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    })
-    return { success: true, latestVersion: version }
-  }
-
-  // Track if we're actually installing or just symlinking
-  let wasNewInstall = false
-  let latencyMs: number
-
-  if (isEnvTruthy(process.env.ENABLE_LOCKLESS_UPDATES)) {
-    // Lockless: rely on atomic operations, errors propagate
-    wasNewInstall = await performVersionUpdate(version, forceReinstall)
-    latencyMs = Date.now() - startTime
-  } else {
-    // Lock-based updates
-    const { installPath } = await getVersionPaths(version)
-    // If force reinstall, remove any existing lock to bypass stale locks
-    if (forceReinstall) {
-      await forceRemoveLock(installPath)
-    }
-
-    const lockAcquired = await tryWithVersionLock(
-      installPath,
-      async () => {
-        wasNewInstall = await performVersionUpdate(version, forceReinstall)
-      },
-      3, // retries
-    )
-
-    latencyMs = Date.now() - startTime
-
-    // Lock acquisition failed - get lock holder PID for error message
-    if (!lockAcquired) {
-      const dirs = getBaseDirectories()
-      let lockHolderPid: number | undefined
-      if (isPidBasedLockingEnabled()) {
-        const lockfilePath = getLockFilePathFromVersionPath(dirs, installPath)
-        if (isLockActive(lockfilePath)) {
-          lockHolderPid = readLockContent(lockfilePath)?.pid
-        }
-      }
-      logEvent('tengu_native_update_lock_failed', {
-        latency_ms: latencyMs,
-        lock_holder_pid: lockHolderPid,
-      })
-      return {
-        success: false,
-        latestVersion: version,
-        lockFailed: true,
-        lockHolderPid,
-      }
-    }
-  }
-
-  logEvent('tengu_native_update_complete', {
-    latency_ms: latencyMs,
-    was_new_install: wasNewInstall,
-    was_force_reinstall: forceReinstall,
-  })
-  logForDebugging(`Successfully updated to version ${version}`)
-  return { success: true, latestVersion: version }
-}
 
 // Exported for testing
 export async function removeDirectoryIfEmpty(path: string): Promise<void> {
@@ -939,81 +756,6 @@ export async function checkInstall(
   return messages
 }
 
-type InstallLatestResult = {
-  latestVersion: string | null
-  wasUpdated: boolean
-  lockFailed?: boolean
-  lockHolderPid?: number
-}
-
-// In-process singleflight guard. NativeAutoUpdater remounts whenever the
-// prompt suggestions overlay toggles (PromptInput.tsx:2916), and the
-// isUpdating guard does not survive the remount. Each remount kicked off a
-// fresh 271MB binary download while previous ones were still in flight.
-// Telemetry: session 42fed33f saw arrayBuffers climb to 91GB at ~650MB/s.
-let inFlightInstall: Promise<InstallLatestResult> | null = null
-
-export function installLatest(
-  channelOrVersion: string,
-  forceReinstall: boolean = false,
-): Promise<InstallLatestResult> {
-  if (forceReinstall) {
-    return installLatestImpl(channelOrVersion, forceReinstall)
-  }
-  if (inFlightInstall) {
-    logForDebugging('installLatest: joining in-flight call')
-    return inFlightInstall
-  }
-  const promise = installLatestImpl(channelOrVersion, forceReinstall)
-  inFlightInstall = promise
-  const clear = (): void => {
-    inFlightInstall = null
-  }
-  void promise.then(clear, clear)
-  return promise
-}
-
-async function installLatestImpl(
-  channelOrVersion: string,
-  forceReinstall: boolean = false,
-): Promise<InstallLatestResult> {
-  const updateResult = await updateLatest(channelOrVersion, forceReinstall)
-
-  if (!updateResult.success) {
-    return {
-      latestVersion: null,
-      wasUpdated: false,
-      lockFailed: updateResult.lockFailed,
-      lockHolderPid: updateResult.lockHolderPid,
-    }
-  }
-
-  // Installation succeeded (early return above covers failure). Mark as native
-  // and disable legacy auto-updater to protect symlinks.
-  const config = getGlobalConfig()
-  if (config.installMethod !== 'native') {
-    saveGlobalConfig(current => ({
-      ...current,
-      installMethod: 'native',
-      // Disable legacy auto-updater to prevent npm sessions from deleting native symlinks.
-      // Native installations use NativeAutoUpdater instead, which respects native installation.
-      autoUpdates: false,
-      // Mark this as protection-based, not user preference
-      autoUpdatesProtectedForNative: true,
-    }))
-    logForDebugging(
-      'Native installer: Set installMethod to "native" and disabled legacy auto-updater for protection',
-    )
-  }
-
-  void cleanupOldVersions()
-
-  return {
-    latestVersion: updateResult.latestVersion,
-    wasUpdated: updateResult.success,
-    lockFailed: false,
-  }
-}
 
 async function getVersionFromSymlink(
   symlinkPath: string,

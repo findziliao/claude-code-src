@@ -19,7 +19,6 @@ import { Box, Text } from '../ink.js';
 import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { useAppState } from '../state/AppState.js';
 import { getPluginErrorMessage } from '../types/plugin.js';
-import { getGcsDistTags, getNpmDistTags, type NpmDistTags } from '../utils/autoUpdater.js';
 import { type ContextWarnings, checkContextWarnings } from '../utils/doctorContextWarnings.js';
 import { type DiagnosticInfo, getDoctorDiagnostic } from '../utils/doctorDiagnostic.js';
 import { validateBoundedIntEnvVar } from '../utils/envValidation.js';
@@ -54,6 +53,7 @@ type VersionLockInfo = {
   locksDir: string;
   staleLocksCleaned: number;
 };
+type NpmDistTags = { latest: string | null; stable: string | null };
 function DistTagsDisplay(t0: { promise: Promise<NpmDistTags> }) {
   const $ = _c(8);
   const {
@@ -551,8 +551,10 @@ function _temp7(error) {
   return error.mcpErrorMetadata === undefined;
 }
 function _temp6(diag) {
-  const fetchDistTags = diag.installationType === "native" ? getGcsDistTags : getNpmDistTags;
-  return fetchDistTags().catch(_temp5);
+  return Promise.resolve({
+    latest: null,
+    stable: null
+  });
 }
 function _temp5() {
   return {
